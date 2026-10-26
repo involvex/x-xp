@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <DirectoryRef Id="TARGETDIR">
+            <Component Id="ExplorerContextMenuComponent" Guid="YOUR-UNIQUE-GUID-HERE">
+                <!-- Kontextmenü-Eintrag für Ordner -->
+                <RegistryKey Root="HKCR" Key="Directory\shell\x-xp">
+                    <RegistryValue Type="string" Value="Mit x-xp öffnen" KeyPath="yes" />
+                    <RegistryValue Type="string" Name="Icon" Value="[INSTALLDIR]x-xp.exe,0" />
+                </RegistryKey>
+                <!-- Befehl, der beim Klick ausgeführt wird (%1 übergibt den Ordnerpfad) -->
+                <RegistryKey Root="HKCR" Key="Directory\shell\x-xp\command">
+                    <RegistryValue Type="string" Value="&quot;[INSTALLDIR]VoidFS.exe&quot; &quot;%1&quot;" />
+                </RegistryKey>
+            </Component>
+        </DirectoryRef>
+    </Fragment>
+</Wix>

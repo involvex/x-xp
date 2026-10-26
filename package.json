@@ -1,0 +1,41 @@
+{
+	"name": "x-xp",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"prebuild": "bun run format && bun check && bun lint src --fix",
+		"build": "tsc && vite build",
+		"dev": "vite",
+		"format": "prettier . --write",
+		"preview": "vite preview",
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev"
+	},
+	"prettier": "@involvex/prettier-config",
+	"dependencies": {
+		"@tauri-apps/api": "^2",
+		"@tauri-apps/plugin-fs": "^2.7.1",
+		"@tauri-apps/plugin-global-shortcut": "^2.4.1",
+		"@tauri-apps/plugin-opener": "^2",
+		"@tauri-apps/plugin-store": "^2.5.0",
+		"@tauri-apps/plugin-window-state": "^2.5.0",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@involvex/prettier-config": "^0.0.6",
+		"@tauri-apps/cli": "^2",
+		"@types/react": "^19.1.8",
+		"@types/react-dom": "^19.1.6",
+		"@vitejs/plugin-react": "^6.0.2",
+		"eslint": "^10.13.0",
+		"globals": "^17.13.0",
+		"jiti": "^2.7.0",
+		"prettier": "^3.9.10",
+		"typescript": "~6.0.3",
+		"typescript-eslint": "^8.72.1",
+		"vite": "^8.0.16"
+	}
+}
