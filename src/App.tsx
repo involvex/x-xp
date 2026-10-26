@@ -18,7 +18,7 @@ interface FileEntry {
 // load_store()
 
 export default function App() {
-	const [currentPath, setCurrentPath] = useState<string>('')
+	const [currentPath, setCurrentPath] = useState<string>('/')
 	const [files, setFiles] = useState<FileEntry[]>([])
 
 	const loadDir = async (path: string) => {
@@ -32,14 +32,36 @@ export default function App() {
 	}
 
 	useEffect(() => {
-		loadDir('') // Startet im Home-Verzeichnis
+		loadDir(currentPath || '/') // Startet im Home-Verzeichnis
 	}, [])
 
 	return (
 		<div className="bg-[#050505] text-[#00ff66] min-h-screen p-6 font-mono selection:bg-[#00ff66]/30">
-			<header className="mb-4 text-sm opacity-80 border-b border-[#00ff66]/20 pb-2">
+			<div className="flex justify-between items-center mb-4">
+				<div className="flex justify-between items-center">
+					<input type="text" className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20" value={currentPath} onChange={(e) => setCurrentPath(e.target.value)} />
+					<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20" onClick={() => loadDir(currentPath)}>
+						Go
+					</button>
+				</div>
+			</div>
+			{/* <header className="mb-4 text-sm opacity-80 border-b border-[#00ff66]/20 pb-2">
 				PFAD: {currentPath || 'Home'}
-			</header>
+			</header> */}
+			<div className="flex justify-between items-center mb-4">
+				<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20">
+					Home
+				</button>
+				<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20">
+					Back
+				</button>
+				<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20">
+					Home
+				</button>
+				<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20">
+					Forward
+				</button>
+			</div>
 			<div className="grid grid-cols-1 gap-1">
 				{files.map(file => (
 					<div
