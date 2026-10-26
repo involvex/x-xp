@@ -39,8 +39,16 @@ export default function App() {
 		<div className="bg-[#050505] text-[#00ff66] min-h-screen p-6 font-mono selection:bg-[#00ff66]/30">
 			<div className="flex justify-between items-center mb-4">
 				<div className="flex justify-between items-center">
-					<input type="text" className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20" value={currentPath} onChange={(e) => setCurrentPath(e.target.value)} />
-					<button className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20" onClick={() => loadDir(currentPath)}>
+					<input
+						type="text"
+						className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20"
+						value={currentPath}
+						onChange={e => setCurrentPath(e.target.value)}
+					/>
+					<button
+						className="bg-[#00ff66]/10 px-3 py-2 rounded hover:bg-[#00ff66]/20"
+						onClick={() => loadDir(currentPath)}
+					>
 						Go
 					</button>
 				</div>
