@@ -39,3 +39,4 @@ Thumbs.db
 *.log
 *.tgz
 *.tar.gz
+src-tauri/wix/*
