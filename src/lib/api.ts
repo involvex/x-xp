@@ -79,6 +79,27 @@ export const api = {
 	restoreDefaults: () => invoke<string>('restore_folder_handlers'),
 	createRestorePoint: (description?: string) =>
 		invoke<string>('create_system_restore_point', {description}),
+	fileLocksmithQuery: (paths: string[], kill = false, exe?: string | null) =>
+		invoke<LocksmithResult>('file_locksmith_query', {
+			paths,
+			kill,
+			exe: exe ?? null,
+		}),
+	openPeek: (path: string, exe?: string | null) =>
+		invoke<void>('open_peek', {path, exe: exe ?? null}),
+	openTerminal: (path: string, exe?: string | null) =>
+		invoke<void>('open_terminal', {path, exe: exe ?? null}),
+}
+
+export type LocksmithProcess = {
+	pid: number
+	name: string
+	user: string
+	files: string[]
+}
+
+export type LocksmithResult = {
+	processes: LocksmithProcess[]
 }
 
 export function formatSize(bytes: number): string {

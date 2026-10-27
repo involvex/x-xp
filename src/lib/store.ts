@@ -344,6 +344,40 @@ export async function saveTagDefs(tags: TagDef[]): Promise<void> {
 	await store.save()
 }
 
+export interface ToolPaths {
+	fileLocksmith: string
+	peek: string
+	terminal: string
+}
+
+export function defaultToolPaths(): ToolPaths {
+	// Empty = let the Rust side resolve PowerToys / candidate paths
+	return {
+		fileLocksmith: '',
+		peek: '',
+		terminal: '',
+	}
+}
+
+export async function loadToolPaths(): Promise<ToolPaths> {
+	const raw = await store.get<Partial<ToolPaths>>('toolPaths')
+	const base = defaultToolPaths()
+	if (!raw || typeof raw !== 'object') return base
+	return {
+		fileLocksmith:
+			typeof raw.fileLocksmith === 'string'
+				? raw.fileLocksmith
+				: base.fileLocksmith,
+		peek: typeof raw.peek === 'string' ? raw.peek : base.peek,
+		terminal: typeof raw.terminal === 'string' ? raw.terminal : base.terminal,
+	}
+}
+
+export async function saveToolPaths(paths: ToolPaths): Promise<void> {
+	await store.set('toolPaths', paths)
+	await store.save()
+}
+
 export async function loadTagMap(): Promise<TagMap> {
 	return (await store.get<TagMap>('tagMap')) ?? {}
 }

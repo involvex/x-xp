@@ -14,6 +14,7 @@ import {
 import {t, type Locale} from '../../lib/i18n'
 import {isHomePath, isRecyclePath, isVirtualPath} from '../../lib/paths'
 import {sortEntries} from '../../lib/sort'
+import type {ToolPaths} from '../../lib/store'
 import {newTransferJobId} from '../../lib/transfer'
 import {pairTransfer, type UndoAction} from '../../lib/undo'
 import type {
@@ -32,6 +33,7 @@ import {ColumnsView} from './ColumnsView'
 import {ContextMenu, type ContextMenuState} from './ContextMenu'
 import {DND_MIME, FileList} from './FileList'
 import {HomePage} from './HomePage'
+import {LocksmithModal} from './LocksmithModal'
 import {PropertiesModal} from './PropertiesModal'
 import {RecycleBinView} from './RecycleBinView'
 import {SearchResultsPanel} from './SearchResultsPanel'
@@ -71,6 +73,8 @@ interface ExplorerPaneProps {
 	onGoUp: () => void
 	onTogglePreview: () => void
 	onToggleTag: (paths: string[], tagId: string) => void
+	onUpdateTag: (tag: TagDef) => void
+	toolPaths: ToolPaths
 	onDropComplete?: () => void
 	onClearSearch?: () => void
 	onPushUndo?: (action: UndoAction) => void
@@ -128,6 +132,8 @@ export function ExplorerPane({
 	onGoUp,
 	onTogglePreview,
 	onToggleTag,
+	onUpdateTag,
+	toolPaths,
 	onDropComplete,
 	onClearSearch,
 	onPushUndo,
@@ -144,6 +150,7 @@ export function ExplorerPane({
 	const [selected, setSelected] = useState<Set<string>>(new Set())
 	const [anchor, setAnchor] = useState<string | null>(null)
 	const [menu, setMenu] = useState<ContextMenuState | null>(null)
+	const [locksmithPaths, setLocksmithPaths] = useState<string[] | null>(null)
 	const [renaming, setRenaming] = useState<string | null>(null)
 	const [renameValue, setRenameValue] = useState('')
 	const [searchEntries, setSearchEntries] = useState<FileEntry[] | null>(null)
@@ -769,6 +776,18 @@ export function ExplorerPane({
 				e.preventDefault()
 				onGoUp()
 			}
+			if (e.key === ' ' && e.ctrlKey && !e.altKey && !e.metaKey) {
+				e.preventDefault()
+				const target =
+					selectedEntries.find(x => !x.isDir) ??
+					visible.find(x => selected.has(x.path) && !x.isDir) ??
+					null
+				if (!target) return
+				void api
+					.openPeek(target.path, toolPaths.peek || null)
+					.catch(() => onToast(t('peekUnavailable', locale)))
+				return
+			}
 			if (e.key === ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				e.preventDefault()
 				if (selected.size === 0 && visible[0]) {
@@ -1002,9 +1021,15 @@ export function ExplorerPane({
 				onClose={() => setMenu(null)}
 				onOpenWith={app => {
 					if (!menu?.path) return
-					void api
-						.openWith(menu.path, app.program, app.args)
-						.catch(e => onToast(String(e)))
+					if (app.id === 'involvex-term' && menu.isDir) {
+						void api
+							.openTerminal(menu.path, toolPaths.terminal || null)
+							.catch(e => onToast(String(e)))
+					} else {
+						void api
+							.openWith(menu.path, app.program, app.args)
+							.catch(e => onToast(String(e)))
+					}
 					setMenu(null)
 				}}
 				onToggleTag={tagId => {
@@ -1012,6 +1037,7 @@ export function ExplorerPane({
 						selected.size > 0 ? [...selected] : menu?.path ? [menu.path] : []
 					if (paths.length > 0) onToggleTag(paths, tagId)
 				}}
+				onUpdateTag={onUpdateTag}
 				onAction={(action: BuiltinMenuAction) => {
 					const entry =
 						visible.find(x => x.path === menu?.path) ??
@@ -1037,6 +1063,33 @@ export function ExplorerPane({
 						case 'openOtherPane':
 							if (menu?.path && menu.isDir) onOpenOtherPane(menu.path)
 							break
+						case 'openTerminal': {
+							const dir =
+								menu?.path && menu.isDir ? menu.path : !atVirtual ? path : null
+							if (dir) {
+								void api
+									.openTerminal(dir, toolPaths.terminal || null)
+									.catch(e => onToast(String(e)))
+							}
+							break
+						}
+						case 'peek':
+							if (menu?.path && !menu.isDir) {
+								void api
+									.openPeek(menu.path, toolPaths.peek || null)
+									.catch(() => onToast(t('peekUnavailable', locale)))
+							}
+							break
+						case 'whoIsLocking': {
+							const paths =
+								selected.size > 0
+									? [...selected]
+									: menu?.path
+										? [menu.path]
+										: []
+							if (paths.length > 0) setLocksmithPaths(paths)
+							break
+						}
 						case 'hideQuickAccess':
 						case 'removeBookmark':
 							break
@@ -1101,6 +1154,15 @@ export function ExplorerPane({
 					locale={locale}
 					entry={propsEntry}
 					onClose={() => setPropsEntry(null)}
+				/>
+			)}
+			{locksmithPaths && (
+				<LocksmithModal
+					locale={locale}
+					paths={locksmithPaths}
+					exe={toolPaths.fileLocksmith || undefined}
+					onClose={() => setLocksmithPaths(null)}
+					onToast={onToast}
 				/>
 			)}
 		</div>

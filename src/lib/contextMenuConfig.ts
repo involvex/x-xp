@@ -23,6 +23,9 @@ export type BuiltinMenuAction =
 	| 'customizeMenu'
 	| 'hideQuickAccess'
 	| 'removeBookmark'
+	| 'whoIsLocking'
+	| 'openTerminal'
+	| 'peek'
 	| 'separator'
 
 export type MenuTarget =
@@ -103,6 +106,14 @@ export const DEFAULT_OPEN_WITH: OpenWithApp[] = [
 		targets: 'both',
 		enabled: false,
 	},
+	{
+		id: 'involvex-term',
+		label: 'involvex-term',
+		program: 'involvex-term',
+		args: ['{path}'],
+		targets: 'dir',
+		enabled: true,
+	},
 ]
 
 export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
@@ -111,9 +122,11 @@ export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
 	{id: 'openNewTab', action: 'openNewTab', enabled: true, when: 'dir'},
 	{id: 'openNewWindow', action: 'openNewWindow', enabled: true, when: 'dir'},
 	{id: 'openOtherPane', action: 'openOtherPane', enabled: true, when: 'dir'},
+	{id: 'openTerminal', action: 'openTerminal', enabled: true, when: 'dir'},
 	{id: 'addBookmark', action: 'addBookmark', enabled: true, when: 'dir'},
 	{id: 'sep1', action: 'separator', enabled: true, when: 'item'},
 	{id: 'openWith', action: 'openWith', enabled: true, when: 'item'},
+	{id: 'peek', action: 'peek', enabled: true, when: 'file'},
 	{id: 'sep2', action: 'separator', enabled: true, when: 'any'},
 	{id: 'copyPath', action: 'copyPath', enabled: true, when: 'item'},
 	{id: 'cut', action: 'cut', enabled: true, when: 'item'},
@@ -130,6 +143,7 @@ export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
 	{id: 'delete', action: 'delete', enabled: true, when: 'item'},
 	{id: 'sep4', action: 'separator', enabled: true, when: 'item'},
 	{id: 'tags', action: 'tags', enabled: true, when: 'item'},
+	{id: 'whoIsLocking', action: 'whoIsLocking', enabled: true, when: 'item'},
 	{id: 'properties', action: 'properties', enabled: true, when: 'item'},
 	{id: 'sep5', action: 'separator', enabled: true, when: 'any'},
 	{id: 'customizeMenu', action: 'customizeMenu', enabled: true, when: 'any'},
@@ -225,6 +239,12 @@ export function actionLabelKey(action: BuiltinMenuAction): string | null {
 			return 'hideQuickAccess'
 		case 'removeBookmark':
 			return 'removeBookmark'
+		case 'whoIsLocking':
+			return 'whoIsLocking'
+		case 'openTerminal':
+			return 'openTerminal'
+		case 'peek':
+			return 'peek'
 		default:
 			return null
 	}
@@ -239,12 +259,14 @@ export const SIDEBAR_MENU_ACTIONS: ReadonlySet<
 	'openNewTab',
 	'openNewWindow',
 	'openOtherPane',
+	'openTerminal',
 	'addBookmark',
 	'openWith',
 	'copyPath',
 	'rename',
 	'hideQuickAccess',
 	'removeBookmark',
+	'whoIsLocking',
 	'properties',
 	'customizeMenu',
 	'separator',

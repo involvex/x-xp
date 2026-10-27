@@ -39,6 +39,7 @@ interface ContextMenuProps {
 	onAction: (action: BuiltinMenuAction) => void
 	onOpenWith: (app: OpenWithApp) => void
 	onToggleTag: (tagId: string) => void
+	onUpdateTag?: (tag: TagDef) => void
 	onClose: () => void
 }
 
@@ -112,9 +113,13 @@ export function ContextMenu({
 	onAction,
 	onOpenWith,
 	onToggleTag,
+	onUpdateTag,
 	onClose,
 }: ContextMenuProps) {
 	const [flyout, setFlyout] = useState<FlyoutId>(null)
+	const [editingTagId, setEditingTagId] = useState<string | null>(null)
+	const [editName, setEditName] = useState('')
+	const [editColor, setEditColor] = useState('#22c55e')
 	const L = (key: MessageKey) => t(key, locale)
 
 	const ctx = useMemo(
@@ -140,6 +145,7 @@ export function ContextMenu({
 
 	useEffect(() => {
 		setFlyout(null)
+		setEditingTagId(null)
 	}, [menu?.x, menu?.y, menu?.path])
 
 	if (!menu) return null
@@ -270,20 +276,106 @@ export function ContextMenu({
 										) : (
 											tagDefs.map(tag => {
 												const on = activeTagIds.includes(tag.id)
+												if (editingTagId === tag.id) {
+													return (
+														<div
+															key={tag.id}
+															className="flex items-center gap-1 px-3 py-1 pl-7"
+															onClick={e => e.stopPropagation()}
+														>
+															<input
+																type="color"
+																value={editColor}
+																onChange={e => setEditColor(e.target.value)}
+																className="h-6 w-6 cursor-pointer rounded border-0 bg-transparent"
+																title={L('tagColor')}
+															/>
+															<input
+																autoFocus
+																value={editName}
+																onChange={e => setEditName(e.target.value)}
+																onKeyDown={e => {
+																	if (e.key === 'Enter') {
+																		const name = editName.trim()
+																		if (name && onUpdateTag) {
+																			onUpdateTag({
+																				...tag,
+																				name,
+																				color: editColor,
+																			})
+																		}
+																		setEditingTagId(null)
+																	}
+																	if (e.key === 'Escape') setEditingTagId(null)
+																}}
+																className="min-w-0 flex-1 rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] px-1.5 py-0.5 text-sm"
+															/>
+															<button
+																type="button"
+																className="rounded px-1.5 text-xs hover:bg-[var(--xp-hover)]"
+																onClick={() => {
+																	const name = editName.trim()
+																	if (name && onUpdateTag) {
+																		onUpdateTag({
+																			...tag,
+																			name,
+																			color: editColor,
+																		})
+																	}
+																	setEditingTagId(null)
+																}}
+															>
+																✓
+															</button>
+														</div>
+													)
+												}
 												return (
-													<button
+													<div
 														key={tag.id}
-														type="button"
-														className={nestedCls}
-														onClick={() => onToggleTag(tag.id)}
+														className="flex items-center gap-0.5 pr-1"
 													>
-														<span
-															className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
-															style={{background: tag.color}}
-														/>
-														{on ? '✓ ' : ''}
-														{tag.name}
-													</button>
+														<button
+															type="button"
+															className={`${nestedCls} flex-1`}
+															onClick={() => onToggleTag(tag.id)}
+														>
+															<span
+																className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+																style={{background: tag.color}}
+															/>
+															{on ? '✓ ' : ''}
+															{tag.name}
+														</button>
+														{onUpdateTag ? (
+															<button
+																type="button"
+																className="rounded px-1 text-xs opacity-50 hover:bg-[var(--xp-hover)] hover:opacity-100"
+																title={L('editTag')}
+																onClick={e => {
+																	e.stopPropagation()
+																	setEditingTagId(tag.id)
+																	setEditName(tag.name)
+																	setEditColor(tag.color)
+																}}
+															>
+																✎
+															</button>
+														) : null}
+														{on ? (
+															<button
+																type="button"
+																className="rounded px-1 text-xs opacity-50 hover:bg-[var(--xp-hover)] hover:opacity-100"
+																title={L('removeTag')}
+																onClick={e => {
+																	e.stopPropagation()
+																	onToggleTag(tag.id)
+																}}
+															>
+																×
+															</button>
+														) : null}
+													</div>
 												)
 											})
 										)}

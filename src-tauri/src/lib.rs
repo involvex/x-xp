@@ -22,6 +22,7 @@ use commands::registry::{
 	restore_folder_handlers, set_as_default_folder_handler,
 };
 use commands::search::{cancel_search, search_by_name, SearchState};
+use commands::tools::{file_locksmith_query, open_peek, open_terminal};
 use commands::transfer::{cancel_transfer, TransferState};
 use commands::watch::{unwatch_dir, watch_dir, WatchState};
 use std::env;
@@ -102,6 +103,9 @@ pub fn run() {
 			unwatch_dir,
 			cancel_transfer,
 			cancel_search,
+			file_locksmith_query,
+			open_peek,
+			open_terminal,
 		])
 		.setup(move |app| {
 			let menu = build_tray_menu(app.handle(), &[])?;

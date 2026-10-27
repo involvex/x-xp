@@ -16,6 +16,7 @@ import {
 	clampSidebarWidth,
 	SIDEBAR_WIDTH_DEFAULT,
 	SIDEBAR_WIDTH_MIN,
+	type ToolPaths,
 } from '../../lib/store'
 import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
 import {
@@ -23,6 +24,7 @@ import {
 	type ContextMenuState,
 	type SidebarMenuKind,
 } from './ContextMenu'
+import {LocksmithModal} from './LocksmithModal'
 import {PropertiesModal} from './PropertiesModal'
 
 const BM_DND = 'application/x-xp-bookmark-index'
@@ -37,6 +39,7 @@ interface SidebarProps {
 	activeTagFilter: string | null
 	currentPath: string
 	menuSettings: ContextMenuSettings
+	toolPaths: ToolPaths
 	onNavigate: (path: string) => void
 	onRemoveBookmark: (id: string) => void
 	onRenameBookmark: (id: string, label: string) => void
@@ -82,6 +85,7 @@ export function Sidebar({
 	activeTagFilter,
 	currentPath,
 	menuSettings,
+	toolPaths,
 	onNavigate,
 	onRemoveBookmark,
 	onRenameBookmark,
@@ -110,6 +114,7 @@ export function Sidebar({
 	const [qaDrop, setQaDrop] = useState<number | null>(null)
 	const [menu, setMenu] = useState<ContextMenuState | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
+	const [locksmithPaths, setLocksmithPaths] = useState<string[] | null>(null)
 
 	const item = (active: boolean) =>
 		`w-full text-left rounded px-2 py-1.5 text-sm truncate ${
@@ -237,6 +242,18 @@ export function Sidebar({
 				else if (kind === 'home') onOpenOtherPane(HOME_PATH)
 				else if (kind === 'recycle') onOpenOtherPane(RECYCLE_PATH)
 				break
+			case 'openTerminal':
+				if (path && kind !== 'home' && kind !== 'recycle') {
+					void api
+						.openTerminal(path, toolPaths.terminal || null)
+						.catch(err => onToast(String(err)))
+				}
+				break
+			case 'whoIsLocking':
+				if (path && kind !== 'home' && kind !== 'recycle') {
+					setLocksmithPaths([path])
+				}
+				break
 			case 'addBookmark':
 				if (path) onAddBookmark(path, pathBasename(path) || path)
 				break
@@ -305,6 +322,15 @@ export function Sidebar({
 					locale={locale}
 					entry={propsEntry}
 					onClose={() => setPropsEntry(null)}
+				/>
+			)}
+			{locksmithPaths && (
+				<LocksmithModal
+					locale={locale}
+					paths={locksmithPaths}
+					exe={toolPaths.fileLocksmith || undefined}
+					onClose={() => setLocksmithPaths(null)}
+					onToast={onToast}
 				/>
 			)}
 		</>

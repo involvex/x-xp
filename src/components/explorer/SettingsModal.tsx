@@ -9,7 +9,12 @@ import {
 } from '../../lib/contextMenuConfig'
 import {eventToAccelerator} from '../../lib/hotkey'
 import {t, type Locale, type MessageKey} from '../../lib/i18n'
-import type {DesktopPrefs, UiAppearance, UiFontStyle} from '../../lib/store'
+import type {
+	DesktopPrefs,
+	ToolPaths,
+	UiAppearance,
+	UiFontStyle,
+} from '../../lib/store'
 import {
 	UI_FONT_SIZE_MAX,
 	UI_FONT_SIZE_MIN,
@@ -17,7 +22,7 @@ import {
 	UI_ZOOM_MIN,
 	UI_ZOOM_STEP,
 } from '../../lib/store'
-import type {RegistryBackupStatus} from '../../types/fs'
+import type {RegistryBackupStatus, TagDef} from '../../types/fs'
 
 type SettingsTab = 'general' | 'desktop' | 'menu'
 
@@ -32,6 +37,10 @@ interface SettingsModalProps {
 	onAutoRefreshFolders: (v: boolean) => void
 	appearance: UiAppearance
 	onAppearance: (a: UiAppearance) => void
+	tagDefs: TagDef[]
+	onTagDefs: (tags: TagDef[]) => void
+	toolPaths: ToolPaths
+	onToolPaths: (p: ToolPaths) => void
 	onRestoreQuickAccess: () => void
 	initialTab?: SettingsTab
 	onClose: () => void
@@ -49,6 +58,10 @@ export function SettingsModal({
 	onAutoRefreshFolders,
 	appearance,
 	onAppearance,
+	tagDefs,
+	onTagDefs,
+	toolPaths,
+	onToolPaths,
 	onRestoreQuickAccess,
 	initialTab = 'general',
 	onClose,
@@ -276,6 +289,94 @@ export function SettingsModal({
 										}
 									/>
 								</label>
+							</section>
+
+							<section className="mb-6 space-y-2">
+								<div className="flex items-center justify-between">
+									<h3 className="text-sm font-semibold">{L('tags')}</h3>
+									<button
+										type="button"
+										className="rounded border border-[var(--xp-border)] px-2 py-1 text-xs hover:bg-[var(--xp-hover)]"
+										onClick={() => {
+											const id = `tag-${crypto.randomUUID().slice(0, 8)}`
+											onTagDefs([
+												...tagDefs,
+												{id, name: 'New tag', color: '#22c55e'},
+											])
+										}}
+									>
+										{L('addTag')}
+									</button>
+								</div>
+								{tagDefs.map(tag => (
+									<div
+										key={tag.id}
+										className="flex items-center gap-2"
+									>
+										<input
+											type="color"
+											value={tag.color}
+											title={L('tagColor')}
+											onChange={e =>
+												onTagDefs(
+													tagDefs.map(x =>
+														x.id === tag.id ? {...x, color: e.target.value} : x,
+													),
+												)
+											}
+											className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent"
+										/>
+										<input
+											value={tag.name}
+											title={L('tagName')}
+											onChange={e =>
+												onTagDefs(
+													tagDefs.map(x =>
+														x.id === tag.id ? {...x, name: e.target.value} : x,
+													),
+												)
+											}
+											className="min-w-0 flex-1 rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-2 py-1 text-sm"
+										/>
+										<button
+											type="button"
+											className="rounded px-2 py-1 text-xs text-[var(--xp-danger)] hover:bg-[var(--xp-hover)]"
+											title={L('deleteTagDef')}
+											onClick={() =>
+												onTagDefs(tagDefs.filter(x => x.id !== tag.id))
+											}
+										>
+											×
+										</button>
+									</div>
+								))}
+							</section>
+
+							<section className="mb-6 space-y-2">
+								<h3 className="text-sm font-semibold">{L('toolPaths')}</h3>
+								<p className="text-xs opacity-60">{L('toolPathHint')}</p>
+								{(
+									[
+										['fileLocksmith', 'toolLocksmith'],
+										['peek', 'toolPeek'],
+										['terminal', 'toolTerminal'],
+									] as const
+								).map(([key, labelKey]) => (
+									<label
+										key={key}
+										className="block text-sm"
+									>
+										{L(labelKey)}
+										<input
+											value={toolPaths[key]}
+											placeholder="(default)"
+											onChange={e =>
+												onToolPaths({...toolPaths, [key]: e.target.value})
+											}
+											className="mt-1 w-full rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-2 py-1.5 font-mono text-xs"
+										/>
+									</label>
+								))}
 							</section>
 
 							<section className="mb-6 space-y-2">

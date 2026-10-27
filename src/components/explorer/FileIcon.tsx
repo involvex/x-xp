@@ -3,6 +3,17 @@ import type {FileEntry} from '../../types/fs'
 type IconKind =
 	'folder' | 'image' | 'text' | 'code' | 'audio' | 'video' | 'archive' | 'file'
 
+const KIND_COLOR: Record<IconKind, string> = {
+	folder: '#e6b84d',
+	image: '#f472b6',
+	audio: '#a78bfa',
+	video: '#fb7185',
+	archive: '#fbbf24',
+	code: '#22d3ee',
+	text: '#94a3b8',
+	file: '#00ff66',
+}
+
 function kindFor(entry: Pick<FileEntry, 'isDir' | 'extension'>): IconKind {
 	if (entry.isDir) return 'folder'
 	const ext = entry.extension.toLowerCase()
@@ -49,16 +60,17 @@ interface FileIconProps {
 
 export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 	const kind = kindFor(entry)
+	const color = KIND_COLOR[kind]
 	const common = {
 		width: size,
 		height: size,
 		viewBox: '0 0 24 24',
 		fill: 'none',
-		stroke: 'currentColor',
+		stroke: color,
 		strokeWidth: 1.6,
 		strokeLinecap: 'round' as const,
 		strokeLinejoin: 'round' as const,
-		className: `shrink-0 opacity-90 ${className}`,
+		className: `shrink-0 opacity-95 ${className}`,
 		'aria-hidden': true as const,
 	}
 
@@ -66,7 +78,10 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 		case 'folder':
 			return (
 				<svg {...common}>
-					<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z" />
+					<path
+						d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z"
+						fill={`${color}22`}
+					/>
 				</svg>
 			)
 		case 'image':
@@ -78,6 +93,7 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 						width="18"
 						height="14"
 						rx="2"
+						fill={`${color}18`}
 					/>
 					<circle
 						cx="9"
@@ -95,11 +111,13 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 						cx="6"
 						cy="18"
 						r="3"
+						fill={`${color}33`}
 					/>
 					<circle
 						cx="18"
 						cy="16"
 						r="3"
+						fill={`${color}33`}
 					/>
 				</svg>
 			)
@@ -112,6 +130,7 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 						width="13"
 						height="12"
 						rx="2"
+						fill={`${color}18`}
 					/>
 					<path d="m16 10 5-3v10l-5-3v-4Z" />
 				</svg>
@@ -119,7 +138,10 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 		case 'archive':
 			return (
 				<svg {...common}>
-					<path d="M7 4h10v16H7z" />
+					<path
+						d="M7 4h10v16H7z"
+						fill={`${color}18`}
+					/>
 					<path d="M10 4v2M14 4v2M10 8v2M14 8v2M10 12h4" />
 				</svg>
 			)
@@ -132,14 +154,20 @@ export function FileIcon({entry, className = '', size = 16}: FileIconProps) {
 		case 'text':
 			return (
 				<svg {...common}>
-					<path d="M7 4h7l5 5v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+					<path
+						d="M7 4h7l5 5v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+						fill={`${color}14`}
+					/>
 					<path d="M14 4v5h5M9 13h6M9 17h4" />
 				</svg>
 			)
 		default:
 			return (
 				<svg {...common}>
-					<path d="M7 4h7l5 5v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+					<path
+						d="M7 4h7l5 5v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+						fill={`${color}14`}
+					/>
 					<path d="M14 4v5h5" />
 				</svg>
 			)

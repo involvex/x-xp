@@ -36,6 +36,7 @@ import {
 	defaultDesktopPrefs,
 	defaultQuickAccessPrefs,
 	defaultSort,
+	defaultToolPaths,
 	defaultUiAppearance,
 	DUAL_SPLIT_DEFAULT,
 	loadAutoRefreshFolders,
@@ -57,6 +58,7 @@ import {
 	loadSidebarWidth,
 	loadTagDefs,
 	loadTagMap,
+	loadToolPaths,
 	loadUiAppearance,
 	loadViewMode,
 	PREVIEW_WIDTH_DEFAULT,
@@ -77,13 +79,16 @@ import {
 	saveShowPreview,
 	saveSidebarCollapsed,
 	saveSidebarWidth,
+	saveTagDefs,
 	saveTagMap,
+	saveToolPaths,
 	saveUiAppearance,
 	saveViewMode,
 	SIDEBAR_WIDTH_DEFAULT,
 	UI_ZOOM_DEFAULT,
 	UI_ZOOM_STEP,
 	type DesktopPrefs,
+	type ToolPaths,
 	type UiAppearance,
 } from './lib/store'
 import {
@@ -210,6 +215,7 @@ export default function App() {
 	const [focusSearchNonce, setFocusSearchNonce] = useState(0)
 	const [focusAddressNonce, setFocusAddressNonce] = useState(0)
 	const [tagDefs, setTagDefs] = useState<TagDef[]>([])
+	const [toolPaths, setToolPaths] = useState<ToolPaths>(defaultToolPaths)
 	const [tagMap, setTagMap] = useState<TagMap>({})
 	const [tagFilter, setTagFilter] = useState<string | null>(null)
 	const [sort, setSort] = useState<SortState>(defaultSort)
@@ -367,6 +373,7 @@ export default function App() {
 					sidebarW,
 					sidebarCollapsedOn,
 					uiAppearance,
+					toolsOn,
 					hidden,
 					folderSizesOn,
 					autoRefreshOn,
@@ -393,6 +400,7 @@ export default function App() {
 					loadSidebarWidth(),
 					loadSidebarCollapsed(),
 					loadUiAppearance(),
+					loadToolPaths(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
 					loadAutoRefreshFolders(),
@@ -421,6 +429,7 @@ export default function App() {
 				setSidebarCollapsed(sidebarCollapsedOn)
 				setAppearance(uiAppearance)
 				applyUiAppearance(uiAppearance)
+				setToolPaths(toolsOn)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
 				setAutoRefreshFolders(autoRefreshOn)
@@ -1056,6 +1065,34 @@ export default function App() {
 		})
 	}
 
+	const changeTagDefs = (next: TagDef[]) => {
+		const ids = new Set(next.map(t => t.id))
+		setTagDefs(next)
+		void saveTagDefs(next)
+		setTagMap(prev => {
+			let changed = false
+			const map: TagMap = {}
+			for (const [path, tags] of Object.entries(prev)) {
+				const kept = tags.filter(id => ids.has(id))
+				if (kept.length !== tags.length) changed = true
+				if (kept.length > 0) map[path] = kept
+				else if (tags.length > 0) changed = true
+			}
+			if (changed) void saveTagMap(map)
+			return changed ? map : prev
+		})
+		if (tagFilter && !ids.has(tagFilter)) setTagFilter(null)
+	}
+
+	const updateTagDef = (tag: TagDef) => {
+		changeTagDefs(tagDefs.map(t => (t.id === tag.id ? tag : t)))
+	}
+
+	const changeToolPaths = (next: ToolPaths) => {
+		setToolPaths(next)
+		void saveToolPaths(next)
+	}
+
 	const paletteActions: PaletteAction[] = [
 		{
 			id: 'home',
@@ -1218,6 +1255,8 @@ export default function App() {
 		onGoUp: () => void goUp(),
 		onTogglePreview: togglePreview,
 		onToggleTag: toggleTagOnPaths,
+		onUpdateTag: updateTagDef,
+		toolPaths,
 		onDropComplete: bumpReload,
 		onClearSearch: () => setSearchQuery(''),
 		onPushUndo: pushUndoAction,
@@ -1290,6 +1329,7 @@ export default function App() {
 					activeTagFilter={tagFilter}
 					currentPath={currentPath}
 					menuSettings={menuSettings}
+					toolPaths={toolPaths}
 					onNavigate={navigateActive}
 					onRemoveBookmark={id => void removeBookmark(id)}
 					onRenameBookmark={(id, label) => void renameBookmark(id, label)}
@@ -1430,6 +1470,10 @@ export default function App() {
 					onAutoRefreshFolders={changeAutoRefreshFolders}
 					appearance={appearance}
 					onAppearance={changeAppearance}
+					tagDefs={tagDefs}
+					onTagDefs={changeTagDefs}
+					toolPaths={toolPaths}
+					onToolPaths={changeToolPaths}
 					onRestoreQuickAccess={() => void restoreQuickAccess()}
 					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}
