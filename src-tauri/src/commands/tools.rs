@@ -122,6 +122,23 @@ pub async fn open_peek(path: String, exe: Option<String>) -> Result<(), String> 
 	.map_err(|e| e.to_string())?
 }
 
+fn push_involvex_release_builds(out: &mut Vec<PathBuf>, root: &Path) {
+	let release = root.join("release");
+	if let Ok(entries) = std::fs::read_dir(&release) {
+		let mut dirs: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+		// Newer semver folders tend to sort last; reverse for newest-first.
+		dirs.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+		for entry in dirs {
+			let exe = entry.path().join(r"win-unpacked\involvex-term.exe");
+			if exe.is_file() {
+				out.push(exe);
+			}
+		}
+	}
+	out.push(root.join(r"dist\involvex-term.exe"));
+	out.push(root.join("involvex-term.exe"));
+}
+
 fn terminal_candidates(override_path: Option<String>) -> Vec<PathBuf> {
 	let mut out = Vec::new();
 	if let Some(p) = override_path.filter(|s| !s.trim().is_empty()) {
@@ -130,17 +147,28 @@ fn terminal_candidates(override_path: Option<String>) -> Vec<PathBuf> {
 	let local = local_app_data();
 	out.push(local.join(r"involvex-term\involvex-term.exe"));
 	out.push(local.join(r"Programs\involvex-term\involvex-term.exe"));
+	out.push(local.join(r"Programs\involvex-term\win-unpacked\involvex-term.exe"));
 	if let Some(user) = std::env::var_os("USERPROFILE") {
 		let home = PathBuf::from(user);
 		out.push(home.join(r"AppData\Local\involvex-term\involvex-term.exe"));
 	}
-	for drive in [r"I:\repos\involvex\involvex-term", r"C:\repos\involvex\involvex-term"] {
-		out.push(PathBuf::from(drive).join(r"target\release\involvex-term.exe"));
-		out.push(PathBuf::from(drive).join(r"dist\involvex-term.exe"));
-		out.push(PathBuf::from(drive).join("involvex-term.exe"));
+	for root in [
+		r"D:\repos\involvex\involvex-term",
+		r"D:\tmp\involvex-term",
+		r"I:\repos\involvex\involvex-term",
+		r"C:\repos\involvex\involvex-term",
+	] {
+		push_involvex_release_builds(&mut out, Path::new(root));
 	}
 	out.push(PathBuf::from("wt.exe"));
 	out
+}
+
+fn is_involvex_term(exe: &Path) -> bool {
+	exe.file_name()
+		.and_then(|n| n.to_str())
+		.map(|n| n.eq_ignore_ascii_case("involvex-term.exe"))
+		.unwrap_or(false)
 }
 
 #[tauri::command]
@@ -168,8 +196,13 @@ pub async fn open_terminal(path: String, exe: Option<String>) -> Result<(), Stri
 				continue;
 			}
 			let mut cmd = Command::new(&candidate);
-			cmd.current_dir(&dir);
-			cmd.arg(&path);
+			if is_involvex_term(&candidate) {
+				// wt-style: new tab at starting directory
+				cmd.args(["nt", "-d", &path]);
+			} else {
+				cmd.current_dir(&dir);
+				cmd.arg(&path);
+			}
 			match cmd.spawn() {
 				Ok(_) => return Ok(()),
 				Err(e) => {
