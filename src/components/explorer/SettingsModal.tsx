@@ -21,6 +21,8 @@ interface SettingsModalProps {
 	onMenuSettings: (s: ContextMenuSettings) => void
 	desktopPrefs: DesktopPrefs
 	onDesktopPrefs: (p: DesktopPrefs) => void
+	autoRefreshFolders: boolean
+	onAutoRefreshFolders: (v: boolean) => void
 	onRestoreQuickAccess: () => void
 	initialTab?: SettingsTab
 	onClose: () => void
@@ -34,6 +36,8 @@ export function SettingsModal({
 	onMenuSettings,
 	desktopPrefs,
 	onDesktopPrefs,
+	autoRefreshFolders,
+	onAutoRefreshFolders,
 	onRestoreQuickAccess,
 	initialTab = 'general',
 	onClose,
@@ -188,6 +192,21 @@ export function SettingsModal({
 									<option value="en">English</option>
 									<option value="de">Deutsch</option>
 								</select>
+							</label>
+
+							<label className="mb-4 flex cursor-pointer items-start gap-2 text-sm">
+								<input
+									type="checkbox"
+									className="mt-1"
+									checked={autoRefreshFolders}
+									onChange={e => onAutoRefreshFolders(e.target.checked)}
+								/>
+								<span>
+									<span className="font-medium">{L('autoRefreshFolders')}</span>
+									<span className="mt-0.5 block text-xs opacity-70">
+										{L('autoRefreshFoldersHint')}
+									</span>
+								</span>
 							</label>
 
 							<section className="mb-6 space-y-2">

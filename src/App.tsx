@@ -31,6 +31,7 @@ import {
 	defaultDesktopPrefs,
 	defaultQuickAccessPrefs,
 	defaultSort,
+	loadAutoRefreshFolders,
 	loadBookmarks,
 	loadContextMenuSettings,
 	loadDesktopPrefs,
@@ -47,6 +48,7 @@ import {
 	loadTagMap,
 	loadViewMode,
 	pushRecentPath,
+	saveAutoRefreshFolders,
 	saveBookmarks,
 	saveContextMenuSettings,
 	saveDesktopPrefs,
@@ -137,6 +139,7 @@ export default function App() {
 	const [showPreview, setShowPreview] = useState(false)
 	const [showHidden, setShowHidden] = useState(false)
 	const [showFolderSizes, setShowFolderSizes] = useState(false)
+	const [autoRefreshFolders, setAutoRefreshFolders] = useState(true)
 	const [searchQuery, setSearchQuery] = useState('')
 	const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
 	const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null)
@@ -253,6 +256,7 @@ export default function App() {
 					preview,
 					hidden,
 					folderSizesOn,
+					autoRefreshOn,
 					loc,
 					rec,
 					startup,
@@ -273,6 +277,7 @@ export default function App() {
 					loadShowPreview(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
+					loadAutoRefreshFolders(),
 					loadLocale(),
 					loadRecentPaths(),
 					api.getStartupPath(),
@@ -294,6 +299,7 @@ export default function App() {
 				setShowPreview(preview)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
+				setAutoRefreshFolders(autoRefreshOn)
 				setLocale(loc)
 				setRecent(rec)
 				setTagDefs(tags)
@@ -567,6 +573,11 @@ export default function App() {
 			void saveShowFolderSizes(next)
 			return next
 		})
+	}
+
+	const changeAutoRefreshFolders = (value: boolean) => {
+		setAutoRefreshFolders(value)
+		void saveAutoRefreshFolders(value)
 	}
 
 	const changeView = (mode: ViewMode) => {
@@ -901,6 +912,7 @@ export default function App() {
 		clipboard,
 		showHidden,
 		showFolderSizes,
+		autoRefreshFolders,
 		dualPane,
 		drives,
 		known,
@@ -1049,6 +1061,8 @@ export default function App() {
 					onMenuSettings={changeMenuSettings}
 					desktopPrefs={desktopPrefs}
 					onDesktopPrefs={changeDesktopPrefs}
+					autoRefreshFolders={autoRefreshFolders}
+					onAutoRefreshFolders={changeAutoRefreshFolders}
 					onRestoreQuickAccess={() => void restoreQuickAccess()}
 					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}

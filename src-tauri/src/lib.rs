@@ -20,6 +20,7 @@ use commands::registry::{
 	restore_folder_handlers, set_as_default_folder_handler,
 };
 use commands::search::search_by_name;
+use commands::watch::{unwatch_dir, watch_dir, WatchState};
 use std::env;
 use tauri::{
 	tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -52,6 +53,7 @@ pub fn run() {
 		}))
 		.manage(StartupState::new(startup.clone()))
 		.manage(DesktopState::default())
+		.manage(WatchState::default())
 		.invoke_handler(tauri::generate_handler![
 			read_dir,
 			get_drives,
@@ -90,6 +92,8 @@ pub fn run() {
 			set_start_minimized,
 			sync_tray_recents,
 			toggle_main_window_cmd,
+			watch_dir,
+			unwatch_dir,
 		])
 		.setup(move |app| {
 			let menu = build_tray_menu(app.handle(), &[])?;

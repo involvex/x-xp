@@ -5,6 +5,12 @@ import {
 	type BuiltinMenuAction,
 	type ContextMenuSettings,
 } from '../../lib/contextMenuConfig'
+import {
+	listenFsChanged,
+	pathsEqual,
+	unwatchDir,
+	watchDir,
+} from '../../lib/fsWatch'
 import {t, type Locale} from '../../lib/i18n'
 import {isHomePath, isRecyclePath, isVirtualPath} from '../../lib/paths'
 import {sortEntries} from '../../lib/sort'
@@ -38,6 +44,7 @@ interface ExplorerPaneProps {
 	reloadToken: number
 	showHidden: boolean
 	showFolderSizes: boolean
+	autoRefreshFolders: boolean
 	dualPane: boolean
 	drives: FileEntry[]
 	known: KnownFolder[]
@@ -89,6 +96,7 @@ export function ExplorerPane({
 	reloadToken,
 	showHidden,
 	showFolderSizes,
+	autoRefreshFolders,
 	dualPane,
 	drives,
 	known,
@@ -131,6 +139,7 @@ export function ExplorerPane({
 	const [folderSizes, setFolderSizes] = useState<Record<string, number | null>>(
 		{},
 	)
+	const [lastWatchUpdate, setLastWatchUpdate] = useState<number | null>(null)
 	const atHome = isHomePath(path)
 	const atRecycle = isRecyclePath(path)
 	const atVirtual = isVirtualPath(path)
@@ -171,9 +180,54 @@ export function ExplorerPane({
 		[onToast],
 	)
 
+	const softLoad = useCallback(async (p: string) => {
+		if (isVirtualPath(p)) return
+		try {
+			const res = await api.readDir(p)
+			setEntries(res)
+			setSelected(prev => {
+				const alive = new Set(res.map(e => e.path))
+				const next = new Set([...prev].filter(x => alive.has(x)))
+				return next
+			})
+			setAnchor(a => (a && res.some(e => e.path === a) ? a : null))
+			setFolderSizes({})
+			setLastWatchUpdate(Date.now())
+		} catch {
+			/* transient — e.g. folder deleted mid-watch */
+		}
+	}, [])
+
 	useEffect(() => {
 		void load(path)
 	}, [path, load, reloadToken])
+
+	useEffect(() => {
+		if (!autoRefreshFolders || atVirtual) return
+		const watched = path
+		let cancelled = false
+		let unlisten: (() => void) | undefined
+		void (async () => {
+			try {
+				await watchDir(watched)
+				if (cancelled) {
+					await unwatchDir(watched).catch(() => undefined)
+					return
+				}
+				unlisten = await listenFsChanged(changed => {
+					if (!pathsEqual(changed, watched)) return
+					void softLoad(watched)
+				})
+			} catch {
+				/* watch unavailable on this path */
+			}
+		})()
+		return () => {
+			cancelled = true
+			unlisten?.()
+			void unwatchDir(watched).catch(() => undefined)
+		}
+	}, [path, autoRefreshFolders, atVirtual, softLoad])
 
 	useEffect(() => {
 		if (!active || !focusAddressNonce) return
@@ -759,6 +813,7 @@ export function ExplorerPane({
 				path={path}
 				searchActive={!!searchQuery.trim() && !atVirtual}
 				truncated={truncated}
+				lastWatchUpdate={lastWatchUpdate}
 			/>
 			<ContextMenu
 				locale={locale}

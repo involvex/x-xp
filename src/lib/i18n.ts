@@ -66,6 +66,10 @@ const strings = {
 		extractTo: 'Extract to…',
 		compressZip: 'Compress to zip',
 		showFolderSizes: 'Folder sizes',
+		autoRefreshFolders: 'Auto-refresh folders',
+		autoRefreshFoldersHint:
+			'Reload the listing when files change on disk (no F5 needed).',
+		folderUpdated: 'Updated',
 		recycleBin: 'Recycle Bin',
 		restoreItem: 'Restore',
 		deletePermanent: 'Delete permanently',
@@ -190,6 +194,10 @@ const strings = {
 		extractTo: 'Extrahieren nach…',
 		compressZip: 'Als ZIP komprimieren',
 		showFolderSizes: 'Ordnergrößen',
+		autoRefreshFolders: 'Ordner automatisch aktualisieren',
+		autoRefreshFoldersHint:
+			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',
+		folderUpdated: 'Aktualisiert',
 		recycleBin: 'Papierkorb',
 		restoreItem: 'Wiederherstellen',
 		deletePermanent: 'Endgültig löschen',

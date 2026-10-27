@@ -111,6 +111,15 @@ export async function saveShowFolderSizes(value: boolean): Promise<void> {
 	await store.save()
 }
 
+export async function loadAutoRefreshFolders(): Promise<boolean> {
+	return (await store.get<boolean>('autoRefreshFolders')) ?? true
+}
+
+export async function saveAutoRefreshFolders(value: boolean): Promise<void> {
+	await store.set('autoRefreshFolders', value)
+	await store.save()
+}
+
 export async function loadLocale(): Promise<Locale> {
 	const v = await store.get<string>('locale')
 	return v === 'de' ? 'de' : 'en'
