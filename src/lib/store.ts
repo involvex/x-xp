@@ -289,6 +289,16 @@ export async function loadLocale(): Promise<Locale> {
 	return v === 'de' ? 'de' : 'en'
 }
 
+export async function loadLastSeenVersion(): Promise<string | null> {
+	const v = await store.get<string>('lastSeenVersion')
+	return typeof v === 'string' && v.trim() ? v : null
+}
+
+export async function saveLastSeenVersion(version: string): Promise<void> {
+	await store.set('lastSeenVersion', version)
+	await store.save()
+}
+
 export async function saveLocale(locale: Locale): Promise<void> {
 	await store.set('locale', locale)
 	await store.save()

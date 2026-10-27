@@ -46,6 +46,7 @@ import {
 	loadDualPane,
 	loadDualSplit,
 	loadLastPath,
+	loadLastSeenVersion,
 	loadLocale,
 	loadPreviewWidth,
 	loadQuickAccessPrefs,
@@ -70,6 +71,7 @@ import {
 	saveDualPane,
 	saveDualSplit,
 	saveLastPath,
+	saveLastSeenVersion,
 	saveLocale,
 	savePreviewWidth,
 	saveQuickAccessPrefs,
@@ -104,6 +106,7 @@ import {
 	undoPromptKey,
 	type UndoAction,
 } from './lib/undo'
+import {APP_VERSION} from './lib/version'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -550,6 +553,16 @@ export default function App() {
 				}
 
 				setReady(true)
+
+				try {
+					const seen = await loadLastSeenVersion()
+					if (seen !== APP_VERSION) {
+						showToast(t('whatsNew020', loc))
+						void saveLastSeenVersion(APP_VERSION)
+					}
+				} catch {
+					/* ignore */
+				}
 
 				unlisten = await listen<string>('open-path', async event => {
 					const p = await resolveOpenPath(event.payload)

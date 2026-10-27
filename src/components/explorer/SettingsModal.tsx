@@ -22,6 +22,7 @@ import {
 	UI_ZOOM_MIN,
 	UI_ZOOM_STEP,
 } from '../../lib/store'
+import {APP_NAME, APP_VERSION} from '../../lib/version'
 import type {RegistryBackupStatus, TagDef} from '../../types/fs'
 
 type SettingsTab = 'general' | 'desktop' | 'menu'
@@ -206,6 +207,17 @@ export function SettingsModal({
 				<div className="min-h-0 flex-1 overflow-auto p-5">
 					{tab === 'general' && (
 						<>
+							<section className="mb-6 rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-3 py-2.5">
+								<h3 className="text-sm font-semibold">{L('about')}</h3>
+								<p className="mt-1 text-sm">
+									{APP_NAME}{' '}
+									<span className="opacity-60">
+										{L('versionLabel')} {APP_VERSION}
+									</span>
+								</p>
+								<p className="mt-1 text-xs opacity-50">{L('whatsNew020')}</p>
+							</section>
+
 							<label className="mb-4 block text-sm">
 								Language
 								<select

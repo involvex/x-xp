@@ -118,11 +118,12 @@ export function FileList({
 	if (entries.length === 0) {
 		return (
 			<div
-				className="flex flex-1 items-center justify-center opacity-40 text-sm"
+				className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
 				onDragOver={onDragOverPane}
 				onDrop={onDropOnPane}
 			>
-				{L('empty')}
+				<p className="text-sm opacity-50">{L('empty')}</p>
+				<p className="max-w-xs text-xs opacity-35">{L('emptyHint')}</p>
 			</div>
 		)
 	}

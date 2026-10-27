@@ -204,6 +204,15 @@ const strings = {
 		toolPeek: 'PowerToys Peek',
 		toolTerminal: 'Terminal (involvex-term)',
 		toolPathHint: 'Leave blank to use the default PowerToys / candidate path',
+		emptyHint: 'Drop files here or use New folder / New file',
+		emptySearchHint: 'Try another name or clear the search box',
+		about: 'About',
+		versionLabel: 'Version',
+		whatsNew020:
+			'v0.2.0 — Ctrl+Space Peek · tags in Settings · Open in Terminal · Who’s locking…',
+		openSettings: 'Settings',
+		terminalMissing:
+			'Terminal not found — set involvex-term path in Settings → External tools',
 	},
 	de: {
 		appName: 'x-xp',
@@ -407,6 +416,15 @@ const strings = {
 		toolPeek: 'PowerToys Peek',
 		toolTerminal: 'Terminal (involvex-term)',
 		toolPathHint: 'Leer = Standard-PowerToys- / Kandidatenpfad',
+		emptyHint: 'Dateien hier ablegen oder Neuer Ordner / Neue Datei',
+		emptySearchHint: 'Anderen Namen versuchen oder Suche leeren',
+		about: 'Über',
+		versionLabel: 'Version',
+		whatsNew020:
+			'v0.2.0 — Ctrl+Leertaste Peek · Tags in Einstellungen · Terminal · Wer sperrt…',
+		openSettings: 'Einstellungen',
+		terminalMissing:
+			'Terminal nicht gefunden — involvex-term-Pfad unter Einstellungen → Externe Tools setzen',
 	},
 } as const
 

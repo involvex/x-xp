@@ -158,6 +158,7 @@ export function ExplorerPane({
 	const [searching, setSearching] = useState(false)
 	const [searchCancelled, setSearchCancelled] = useState(false)
 	const [loading, setLoading] = useState(false)
+	const [loadError, setLoadError] = useState<string | null>(null)
 	const [dropTarget, setDropTarget] = useState<string | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
 	const [folderSizes, setFolderSizes] = useState<Record<string, number | null>>(
@@ -184,10 +185,12 @@ export function ExplorerPane({
 				setSearchEntries(null)
 				setTruncated(false)
 				setFolderSizes({})
+				setLoadError(null)
 				setLoading(false)
 				return
 			}
 			setLoading(true)
+			setLoadError(null)
 			try {
 				const res = await api.readDir(p)
 				setEntries(res)
@@ -196,7 +199,10 @@ export function ExplorerPane({
 				setTruncated(false)
 				setFolderSizes({})
 			} catch (e) {
-				onToast(String(e))
+				const msg = String(e)
+				setEntries([])
+				setLoadError(msg)
+				onToast(msg)
 			} finally {
 				setLoading(false)
 			}
@@ -887,6 +893,18 @@ export function ExplorerPane({
 				onNavigate={navigate}
 			/>
 			{loading && <div className="px-3 py-1 text-xs opacity-50">Loading…</div>}
+			{loadError && !loading ? (
+				<div className="mx-3 my-2 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
+					<p className="opacity-90">{loadError}</p>
+					<button
+						type="button"
+						className="mt-2 rounded border border-[var(--xp-border)] px-2 py-1 text-xs hover:bg-[var(--xp-hover)]"
+						onClick={() => void load(path)}
+					>
+						{t('refresh', locale)}
+					</button>
+				</div>
+			) : null}
 			{atHome ? (
 				<HomePage
 					locale={locale}
@@ -1069,7 +1087,14 @@ export function ExplorerPane({
 							if (dir) {
 								void api
 									.openTerminal(dir, toolPaths.terminal || null)
-									.catch(e => onToast(String(e)))
+									.catch(e => {
+										const msg = String(e)
+										onToast(
+											/not found|No terminal/i.test(msg)
+												? t('terminalMissing', locale)
+												: msg,
+										)
+									})
 							}
 							break
 						}

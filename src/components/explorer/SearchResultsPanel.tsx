@@ -91,8 +91,15 @@ export function SearchResultsPanel({
 					{L('searchSearching')}…
 				</div>
 			) : entries.length === 0 ? (
-				<div className="flex flex-1 items-center justify-center text-sm opacity-50">
-					{cancelled ? L('searchCancelled') : L('searchNoResults')}
+				<div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
+					<p className="text-sm opacity-50">
+						{cancelled ? L('searchCancelled') : L('searchNoResults')}
+					</p>
+					{!cancelled ? (
+						<p className="max-w-xs text-xs opacity-35">
+							{L('emptySearchHint')}
+						</p>
+					) : null}
 				</div>
 			) : (
 				<ul className="min-h-0 flex-1 overflow-auto">
