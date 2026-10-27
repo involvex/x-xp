@@ -139,6 +139,7 @@ export function FileList({
 						key={entry.path}
 						type="button"
 						draggable
+						data-path={entry.path}
 						className={`flex flex-col items-center gap-1 rounded p-2 text-center text-xs ${
 							selected.has(entry.path)
 								? 'bg-[var(--xp-select)]'
@@ -213,6 +214,7 @@ export function FileList({
 						<li
 							key={entry.path}
 							draggable
+							data-path={entry.path}
 							className={`grid cursor-default grid-cols-[minmax(0,1fr)_100px_160px] items-center gap-2 px-3 py-1.5 text-sm ${
 								isSelected
 									? 'bg-[var(--xp-select)]'

@@ -479,6 +479,10 @@ export default function App() {
 				e.preventDefault()
 				closeTab(activeTabId)
 			}
+			if (e.ctrlKey && e.key === 'Tab' && !typing) {
+				e.preventDefault()
+				cycleTab(e.shiftKey ? -1 : 1)
+			}
 			if (e.ctrlKey && e.key.toLowerCase() === 'f' && !typing) {
 				e.preventDefault()
 				setFocusSearchNonce(n => n + 1)
@@ -523,6 +527,14 @@ export default function App() {
 			if (id === activeTabId) setActiveTabId(next[0]?.id ?? '')
 			return next
 		})
+	}
+
+	const cycleTab = (dir: 1 | -1) => {
+		if (tabs.length < 2) return
+		const idx = tabs.findIndex(t => t.id === activeTabId)
+		const base = idx >= 0 ? idx : 0
+		const next = (base + dir + tabs.length) % tabs.length
+		setActiveTabId(tabs[next].id)
 	}
 
 	const toggleDual = () => {
@@ -796,8 +808,20 @@ export default function App() {
 		{
 			id: 'preview',
 			label: t('preview', locale),
-			hint: 'F4',
+			hint: 'F4 / Space',
 			run: togglePreview,
+		},
+		{
+			id: 'next-tab',
+			label: '+ Tab →',
+			hint: 'Ctrl+Tab',
+			run: () => cycleTab(1),
+		},
+		{
+			id: 'prev-tab',
+			label: '← Tab',
+			hint: 'Ctrl+Shift+Tab',
+			run: () => cycleTab(-1),
 		},
 		{
 			id: 'hidden',
@@ -903,6 +927,7 @@ export default function App() {
 			setSettingsOpen(true)
 		},
 		onGoUp: () => void goUp(),
+		onTogglePreview: togglePreview,
 		onToggleTag: toggleTagOnPaths,
 		onDropComplete: bumpReload,
 	}

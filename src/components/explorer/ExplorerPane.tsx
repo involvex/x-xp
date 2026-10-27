@@ -59,6 +59,7 @@ interface ExplorerPaneProps {
 	onOpenOtherPane: (path: string) => void
 	onCustomizeMenu: () => void
 	onGoUp: () => void
+	onTogglePreview: () => void
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
 	/** Increment while active to focus the address bar (Ctrl+L). */
@@ -109,11 +110,13 @@ export function ExplorerPane({
 	onOpenOtherPane,
 	onCustomizeMenu,
 	onGoUp,
+	onTogglePreview,
 	onToggleTag,
 	onDropComplete,
 	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
 	const addressRef = useRef<AddressBarHandle>(null)
+	const typeaheadRef = useRef({buffer: '', timer: 0 as number})
 	const [entries, setEntries] = useState<FileEntry[]>([])
 	const [selected, setSelected] = useState<Set<string>>(new Set())
 	const [anchor, setAnchor] = useState<string | null>(null)
@@ -262,6 +265,47 @@ export function ExplorerPane({
 				onToast(String(e))
 			}
 		}
+	}
+
+	const scrollPathIntoView = (entryPath: string) => {
+		requestAnimationFrame(() => {
+			const el = document.querySelector(
+				`[data-path="${CSS.escape(entryPath)}"]`,
+			)
+			el?.scrollIntoView({block: 'nearest'})
+		})
+	}
+
+	const focusIndex = () => {
+		if (visible.length === 0) return -1
+		if (anchor) {
+			const ai = visible.findIndex(x => x.path === anchor)
+			if (ai >= 0 && selected.has(anchor)) return ai
+		}
+		for (let i = 0; i < visible.length; i++) {
+			if (selected.has(visible[i].path)) return i
+		}
+		return -1
+	}
+
+	const selectByIndex = (idx: number, extend: boolean) => {
+		if (visible.length === 0) return
+		const i = Math.max(0, Math.min(visible.length - 1, idx))
+		const entry = visible[i]
+		if (extend) {
+			const startPath = anchor ?? entry.path
+			const start = visible.findIndex(x => x.path === startPath)
+			const from = start >= 0 ? start : i
+			const [a, b] = from < i ? [from, i] : [i, from]
+			const next = new Set<string>()
+			for (let n = a; n <= b; n++) next.add(visible[n].path)
+			setSelected(next)
+			if (!anchor) setAnchor(entry.path)
+		} else {
+			setSelected(new Set([entry.path]))
+			setAnchor(entry.path)
+		}
+		scrollPathIntoView(entry.path)
 	}
 
 	const onClick = (entry: FileEntry, e: React.MouseEvent) => {
@@ -477,6 +521,7 @@ export function ExplorerPane({
 		const onKey = (e: KeyboardEvent) => {
 			const tag = (e.target as HTMLElement)?.tagName
 			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+			if (atHome || atRecycle) return
 
 			if (e.key === 'F5') {
 				e.preventDefault()
@@ -506,6 +551,23 @@ export function ExplorerPane({
 				e.preventDefault()
 				void doPaste()
 			}
+			if (
+				e.ctrlKey &&
+				e.shiftKey &&
+				e.key.toLowerCase() === 'c' &&
+				!atVirtual
+			) {
+				const p =
+					selectedEntries[0]?.path ??
+					(selected.size === 1 ? [...selected][0] : null)
+				if (p) {
+					e.preventDefault()
+					void navigator.clipboard.writeText(p).then(
+						() => onToast(t('pathCopied', locale)),
+						err => onToast(String(err)),
+					)
+				}
+			}
 			if (e.key === 'Enter' && selectedEntries[0]) {
 				e.preventDefault()
 				void openEntry(selectedEntries[0])
@@ -513,6 +575,81 @@ export function ExplorerPane({
 			if (e.key === 'Backspace' && e.altKey) {
 				e.preventDefault()
 				onGoUp()
+			}
+			if (e.key === ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+				e.preventDefault()
+				if (selected.size === 0 && visible[0]) {
+					setSelected(new Set([visible[0].path]))
+					setAnchor(visible[0].path)
+				}
+				onTogglePreview()
+				return
+			}
+
+			const page = 10
+			const cur = focusIndex()
+			const extend = e.shiftKey
+			if (e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(cur < 0 ? 0 : cur + 1, extend)
+				return
+			}
+			if (e.key === 'ArrowUp' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(cur < 0 ? 0 : cur - 1, extend)
+				return
+			}
+			if (e.key === 'Home' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(0, extend)
+				return
+			}
+			if (e.key === 'End' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(visible.length - 1, extend)
+				return
+			}
+			if (e.key === 'PageDown' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(cur < 0 ? 0 : cur + page, extend)
+				return
+			}
+			if (e.key === 'PageUp' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+				e.preventDefault()
+				selectByIndex(cur < 0 ? 0 : cur - page, extend)
+				return
+			}
+
+			// Type-ahead: printable character without modifiers
+			if (
+				!e.ctrlKey &&
+				!e.altKey &&
+				!e.metaKey &&
+				e.key.length === 1 &&
+				!e.isComposing
+			) {
+				const ch = e.key
+				if (ch === ' ') return
+				e.preventDefault()
+				const state = typeaheadRef.current
+				window.clearTimeout(state.timer)
+				state.buffer += ch.toLowerCase()
+				state.timer = window.setTimeout(() => {
+					state.buffer = ''
+				}, 700)
+				const q = state.buffer
+				const from = Math.max(0, cur)
+				const order = [
+					...visible.slice(from + 1),
+					...visible.slice(0, from + 1),
+				]
+				const match = order.find(entry =>
+					entry.name.toLowerCase().startsWith(q),
+				)
+				if (match) {
+					const idx = visible.findIndex(x => x.path === match.path)
+					if (idx >= 0) selectByIndex(idx, false)
+				}
 			}
 		}
 		window.addEventListener('keydown', onKey)
