@@ -39,6 +39,7 @@ import {
 	loadDualPane,
 	loadLastPath,
 	loadLocale,
+	loadPreviewWidth,
 	loadQuickAccessPrefs,
 	loadRecentPaths,
 	loadSession,
@@ -48,6 +49,7 @@ import {
 	loadTagDefs,
 	loadTagMap,
 	loadViewMode,
+	PREVIEW_WIDTH_DEFAULT,
 	pushRecentPath,
 	saveAutoRefreshFolders,
 	saveBookmarks,
@@ -56,6 +58,7 @@ import {
 	saveDualPane,
 	saveLastPath,
 	saveLocale,
+	savePreviewWidth,
 	saveQuickAccessPrefs,
 	saveSession,
 	saveShowFolderSizes,
@@ -143,6 +146,7 @@ export default function App() {
 	const [viewMode, setViewMode] = useState<ViewMode>('details')
 	const [dualPane, setDualPane] = useState(false)
 	const [showPreview, setShowPreview] = useState(false)
+	const [previewWidth, setPreviewWidth] = useState(PREVIEW_WIDTH_DEFAULT)
 	const [showHidden, setShowHidden] = useState(false)
 	const [showFolderSizes, setShowFolderSizes] = useState(false)
 	const [autoRefreshFolders, setAutoRefreshFolders] = useState(true)
@@ -261,6 +265,7 @@ export default function App() {
 					bm,
 					dual,
 					preview,
+					previewW,
 					hidden,
 					folderSizesOn,
 					autoRefreshOn,
@@ -282,6 +287,7 @@ export default function App() {
 					loadBookmarks(),
 					loadDualPane(),
 					loadShowPreview(),
+					loadPreviewWidth(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
 					loadAutoRefreshFolders(),
@@ -304,6 +310,7 @@ export default function App() {
 				setBookmarks(bm)
 				setDualPane(dual)
 				setShowPreview(preview)
+				setPreviewWidth(previewW)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
 				setAutoRefreshFolders(autoRefreshOn)
@@ -1081,6 +1088,12 @@ export default function App() {
 						<PreviewPanel
 							locale={locale}
 							entry={previewEntry}
+							width={previewWidth}
+							onWidthChange={setPreviewWidth}
+							onWidthCommit={w => {
+								setPreviewWidth(w)
+								void savePreviewWidth(w)
+							}}
 						/>
 					)}
 				</div>

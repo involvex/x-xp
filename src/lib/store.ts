@@ -93,6 +93,28 @@ export async function saveShowPreview(value: boolean): Promise<void> {
 	await store.save()
 }
 
+export const PREVIEW_WIDTH_DEFAULT = 320
+export const PREVIEW_WIDTH_MIN = 220
+export const PREVIEW_WIDTH_MAX = 720
+
+export function clampPreviewWidth(width: number): number {
+	if (!Number.isFinite(width)) return PREVIEW_WIDTH_DEFAULT
+	return Math.min(
+		PREVIEW_WIDTH_MAX,
+		Math.max(PREVIEW_WIDTH_MIN, Math.round(width)),
+	)
+}
+
+export async function loadPreviewWidth(): Promise<number> {
+	const v = await store.get<number>('previewWidth')
+	return typeof v === 'number' ? clampPreviewWidth(v) : PREVIEW_WIDTH_DEFAULT
+}
+
+export async function savePreviewWidth(width: number): Promise<void> {
+	await store.set('previewWidth', clampPreviewWidth(width))
+	await store.save()
+}
+
 export async function loadShowHidden(): Promise<boolean> {
 	return (await store.get<boolean>('showHidden')) ?? false
 }
