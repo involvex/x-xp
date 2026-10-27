@@ -16,10 +16,19 @@ export const api = {
 	renameEntry: (from: string, to: string) =>
 		invoke<FileEntry>('rename_entry', {from, to}),
 	deleteEntries: (paths: string[]) => invoke<void>('delete_entries', {paths}),
-	copyEntries: (sources: string[], destDir: string) =>
-		invoke<FileEntry[]>('copy_entries', {sources, destDir}),
-	moveEntries: (sources: string[], destDir: string) =>
-		invoke<FileEntry[]>('move_entries', {sources, destDir}),
+	copyEntries: (sources: string[], destDir: string, jobId?: string) =>
+		invoke<FileEntry[]>('copy_entries', {
+			sources,
+			destDir,
+			jobId: jobId ?? null,
+		}),
+	moveEntries: (sources: string[], destDir: string, jobId?: string) =>
+		invoke<FileEntry[]>('move_entries', {
+			sources,
+			destDir,
+			jobId: jobId ?? null,
+		}),
+	cancelTransfer: (jobId: string) => invoke<void>('cancel_transfer', {jobId}),
 	openPath: (path: string) => invoke<void>('open_path', {path}),
 	openWith: (path: string, program: string, args: string[] = []) =>
 		invoke<void>('open_with', {path, program, args}),

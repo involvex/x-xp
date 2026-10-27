@@ -11,6 +11,7 @@ import {SettingsModal} from './components/explorer/SettingsModal'
 import {Sidebar} from './components/explorer/Sidebar'
 import {TabBar} from './components/explorer/TabBar'
 import {Toolbar} from './components/explorer/Toolbar'
+import {TransferBar} from './components/explorer/TransferBar'
 import {Toast} from './components/Toast'
 import {api} from './lib/api'
 import {
@@ -64,6 +65,11 @@ import {
 	saveViewMode,
 	type DesktopPrefs,
 } from './lib/store'
+import {
+	cancelTransfer,
+	listenTransferProgress,
+	type TransferProgress,
+} from './lib/transfer'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -150,6 +156,7 @@ export default function App() {
 	const [desktopPrefs, setDesktopPrefs] =
 		useState<DesktopPrefs>(defaultDesktopPrefs)
 	const [toast, setToast] = useState<string | null>(null)
+	const [transfer, setTransfer] = useState<TransferProgress | null>(null)
 	const [ready, setReady] = useState(false)
 	const [reloadToken, setReloadToken] = useState(0)
 	const [paletteOpen, setPaletteOpen] = useState(false)
@@ -448,6 +455,30 @@ export default function App() {
 		})()
 		return () => {
 			cancelled = true
+			unlisten?.()
+		}
+	}, [])
+
+	useEffect(() => {
+		let unlisten: (() => void) | undefined
+		let hideTimer = 0
+		void listenTransferProgress(progress => {
+			window.clearTimeout(hideTimer)
+			setTransfer(progress)
+			if (
+				progress.phase === 'done' ||
+				progress.phase === 'cancelled' ||
+				progress.phase === 'error'
+			) {
+				hideTimer = window.setTimeout(() => {
+					setTransfer(prev => (prev?.jobId === progress.jobId ? null : prev))
+				}, 1800)
+			}
+		}).then(fn => {
+			unlisten = fn
+		})
+		return () => {
+			window.clearTimeout(hideTimer)
 			unlisten?.()
 		}
 	}, [])
@@ -1075,6 +1106,16 @@ export default function App() {
 				onClose={() => setPaletteOpen(false)}
 				actions={paletteActions}
 			/>
+			{transfer && (
+				<TransferBar
+					locale={locale}
+					progress={transfer}
+					onCancel={() => {
+						void cancelTransfer(transfer.jobId).catch(() => undefined)
+					}}
+					onDismiss={() => setTransfer(null)}
+				/>
+			)}
 			<Toast
 				message={toast}
 				onClose={() => setToast(null)}

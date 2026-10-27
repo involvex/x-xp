@@ -14,6 +14,7 @@ import {
 import {t, type Locale} from '../../lib/i18n'
 import {isHomePath, isRecyclePath, isVirtualPath} from '../../lib/paths'
 import {sortEntries} from '../../lib/sort'
+import {newTransferJobId} from '../../lib/transfer'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -404,16 +405,19 @@ export function ExplorerPane({
 
 	const doPaste = async () => {
 		if (atVirtual || !clipboard || clipboard.paths.length === 0) return
+		const jobId = newTransferJobId()
 		try {
 			if (clipboard.mode === 'copy') {
-				await api.copyEntries(clipboard.paths, path)
+				await api.copyEntries(clipboard.paths, path, jobId)
 			} else {
-				await api.moveEntries(clipboard.paths, path)
+				await api.moveEntries(clipboard.paths, path, jobId)
 				onClipboard(null)
 			}
 			await load(path)
 		} catch (e) {
-			onToast(String(e))
+			const msg = String(e)
+			if (!msg.toLowerCase().includes('cancelled')) onToast(msg)
+			else await load(path)
 		}
 	}
 
@@ -517,13 +521,19 @@ export function ExplorerPane({
 			return srcNorm !== destNorm && !destNorm.startsWith(srcNorm + '\\')
 		})
 		if (filtered.length === 0) return
+		const jobId = newTransferJobId()
 		try {
-			if (copy) await api.copyEntries(filtered, destDir)
-			else await api.moveEntries(filtered, destDir)
+			if (copy) await api.copyEntries(filtered, destDir, jobId)
+			else await api.moveEntries(filtered, destDir, jobId)
 			await load(path)
 			onDropComplete?.()
 		} catch (e) {
-			onToast(String(e))
+			const msg = String(e)
+			if (!msg.toLowerCase().includes('cancelled')) onToast(msg)
+			else {
+				await load(path)
+				onDropComplete?.()
+			}
 		}
 	}
 

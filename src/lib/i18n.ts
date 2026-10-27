@@ -70,6 +70,10 @@ const strings = {
 		autoRefreshFoldersHint:
 			'Reload the listing when files change on disk (no F5 needed).',
 		folderUpdated: 'Updated',
+		transferCopying: 'Copying',
+		transferMoving: 'Moving',
+		transferDone: 'Transfer complete',
+		transferCancelled: 'Transfer cancelled',
 		recycleBin: 'Recycle Bin',
 		restoreItem: 'Restore',
 		deletePermanent: 'Delete permanently',
@@ -198,6 +202,10 @@ const strings = {
 		autoRefreshFoldersHint:
 			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',
 		folderUpdated: 'Aktualisiert',
+		transferCopying: 'Kopieren',
+		transferMoving: 'Verschieben',
+		transferDone: 'Übertragung abgeschlossen',
+		transferCancelled: 'Übertragung abgebrochen',
 		recycleBin: 'Papierkorb',
 		restoreItem: 'Wiederherstellen',
 		deletePermanent: 'Endgültig löschen',

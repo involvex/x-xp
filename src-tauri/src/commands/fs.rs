@@ -1,12 +1,20 @@
 use chrono::{DateTime, Local};
-use fs_extra::dir::{copy as copy_dir, CopyOptions as DirCopyOptions};
-use fs_extra::file::{copy as copy_file, CopyOptions as FileCopyOptions};
+use fs_extra::dir::{
+	copy_with_progress as copy_dir_with_progress, CopyOptions as DirCopyOptions,
+	TransitProcessResult,
+};
 use serde::Serialize;
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::SystemTime;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Instant, SystemTime};
+use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
+
+use super::transfer::{emit_progress, TransferProgress, TransferState};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -196,63 +204,369 @@ fn unique_dest(dest_dir: &Path, name: &str) -> PathBuf {
 	}
 }
 
-#[tauri::command]
-pub async fn copy_entries(sources: Vec<String>, dest_dir: String) -> Result<Vec<FileEntry>, String> {
-	let dest = PathBuf::from(&dest_dir);
-	if !dest.is_dir() {
-		return Err("Destination is not a directory".into());
+fn transfer_job_id(job_id: Option<String>) -> String {
+	job_id
+		.filter(|s| !s.is_empty())
+		.unwrap_or_else(|| format!("job-{}", uuid_lite()))
+}
+
+fn uuid_lite() -> String {
+	use std::time::{SystemTime, UNIX_EPOCH};
+	let nanos = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.map(|d| d.as_nanos())
+		.unwrap_or(0);
+	format!("{nanos:x}")
+}
+
+fn check_cancelled(flag: &AtomicBool) -> Result<(), String> {
+	if flag.load(Ordering::SeqCst) {
+		Err("Transfer cancelled".into())
+	} else {
+		Ok(())
 	}
-	let mut results = Vec::new();
-	for src in sources {
-		let src_path = PathBuf::from(&src);
-		let name = src_path
-			.file_name()
-			.ok_or_else(|| format!("Invalid source: {src}"))?
-			.to_string_lossy()
-			.into_owned();
-		let target = unique_dest(&dest, &name);
-		if src_path.is_dir() {
-			let mut opts = DirCopyOptions::new();
-			opts.copy_inside = true;
-			copy_dir(&src_path, &target, &opts).map_err(|e| e.to_string())?;
-		} else {
-			copy_file(&src_path, &target, &FileCopyOptions::new()).map_err(|e| e.to_string())?;
+}
+
+fn should_emit(last: &Mutex<Option<Instant>>) -> bool {
+	let Ok(mut guard) = last.lock() else {
+		return true;
+	};
+	let now = Instant::now();
+	match *guard {
+		Some(prev) if now.duration_since(prev) < std::time::Duration::from_millis(50) => false,
+		_ => {
+			*guard = Some(now);
+			true
 		}
-		results.push(entry_from_path(&target)?);
 	}
-	Ok(results)
+}
+
+fn copy_file_cancellable(
+	app: &AppHandle,
+	job_id: &str,
+	mode: &str,
+	src_path: &Path,
+	target: &Path,
+	name: &str,
+	index: u64,
+	total: u64,
+	cancelled: &AtomicBool,
+) -> Result<(), String> {
+	let meta = fs::metadata(src_path).map_err(|e| e.to_string())?;
+	let total_bytes = meta.len();
+	let mut reader = fs::File::open(src_path).map_err(|e| e.to_string())?;
+	let mut writer = fs::File::create(target).map_err(|e| e.to_string())?;
+	let mut buf = vec![0u8; 64 * 1024];
+	let mut done: u64 = 0;
+	let last = Mutex::new(None::<Instant>);
+	loop {
+		check_cancelled(cancelled)?;
+		let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+		if n == 0 {
+			break;
+		}
+		writer.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+		done += n as u64;
+		if should_emit(&last) {
+			let _ = app.emit(
+				"transfer-progress",
+				TransferProgress {
+					job_id: job_id.to_string(),
+					mode: mode.to_string(),
+					index,
+					total,
+					name: name.to_string(),
+					bytes_done: done,
+					bytes_total: total_bytes,
+					phase: "running".into(),
+					message: None,
+				},
+			);
+		}
+	}
+	writer.flush().map_err(|e| e.to_string())?;
+	let _ = fs::set_permissions(target, meta.permissions());
+	Ok(())
+}
+
+fn copy_path_with_progress(
+	app: &AppHandle,
+	state: &TransferState,
+	job_id: &str,
+	mode: &str,
+	src_path: &Path,
+	target: &Path,
+	name: &str,
+	index: u64,
+	total: u64,
+	cancelled: &Arc<AtomicBool>,
+) -> Result<(), String> {
+	check_cancelled(cancelled)?;
+	emit_progress(
+		app,
+		state,
+		TransferProgress {
+			job_id: job_id.to_string(),
+			mode: mode.to_string(),
+			index,
+			total,
+			name: name.to_string(),
+			bytes_done: 0,
+			bytes_total: 0,
+			phase: "running".into(),
+			message: None,
+		},
+	);
+
+	if src_path.is_dir() {
+		let mut opts = DirCopyOptions::new();
+		opts.copy_inside = true;
+		opts.buffer_size = 64 * 1024;
+		let app2 = app.clone();
+		let job = job_id.to_string();
+		let mode_s = mode.to_string();
+		let fallback_name = name.to_string();
+		let flag = cancelled.clone();
+		let last = Mutex::new(None::<Instant>);
+
+		let copy_result = copy_dir_with_progress(src_path, target, &opts, |proc| {
+			if flag.load(Ordering::SeqCst) {
+				return TransitProcessResult::Abort;
+			}
+			if should_emit(&last) {
+				let file_name = if proc.file_name.is_empty() {
+					fallback_name.clone()
+				} else {
+					proc.file_name.clone()
+				};
+				let _ = app2.emit(
+					"transfer-progress",
+					TransferProgress {
+						job_id: job.clone(),
+						mode: mode_s.clone(),
+						index,
+						total,
+						name: file_name,
+						bytes_done: proc.copied_bytes,
+						bytes_total: proc.total_bytes,
+						phase: "running".into(),
+						message: None,
+					},
+				);
+			}
+			TransitProcessResult::ContinueOrAbort
+		});
+
+		if flag.load(Ordering::SeqCst) {
+			let _ = fs::remove_dir_all(target);
+			return Err("Transfer cancelled".into());
+		}
+		copy_result.map_err(|e| e.to_string())?;
+	} else if let Err(e) = copy_file_cancellable(
+		app, job_id, mode, src_path, target, name, index, total, cancelled,
+	) {
+		let _ = fs::remove_file(target);
+		return Err(e);
+	}
+	check_cancelled(cancelled)
 }
 
 #[tauri::command]
-pub async fn move_entries(sources: Vec<String>, dest_dir: String) -> Result<Vec<FileEntry>, String> {
+pub async fn copy_entries(
+	app: AppHandle,
+	sources: Vec<String>,
+	dest_dir: String,
+	job_id: Option<String>,
+	state: State<'_, TransferState>,
+) -> Result<Vec<FileEntry>, String> {
 	let dest = PathBuf::from(&dest_dir);
 	if !dest.is_dir() {
 		return Err("Destination is not a directory".into());
 	}
-	let mut results = Vec::new();
-	for src in sources {
-		let src_path = PathBuf::from(&src);
-		let name = src_path
-			.file_name()
-			.ok_or_else(|| format!("Invalid source: {src}"))?
-			.to_string_lossy()
-			.into_owned();
-		let target = unique_dest(&dest, &name);
-		fs::rename(&src_path, &target).or_else(|_| {
-			if src_path.is_dir() {
-				let mut opts = DirCopyOptions::new();
-				opts.copy_inside = true;
-				copy_dir(&src_path, &target, &opts).map_err(|e| e.to_string())?;
-				fs::remove_dir_all(&src_path).map_err(|e| e.to_string())?;
-			} else {
-				copy_file(&src_path, &target, &FileCopyOptions::new()).map_err(|e| e.to_string())?;
-				fs::remove_file(&src_path).map_err(|e| e.to_string())?;
-			}
-			Ok::<(), String>(())
-		})?;
-		results.push(entry_from_path(&target)?);
+	let job_id = transfer_job_id(job_id);
+	let cancelled = state.register(&job_id);
+	let total = sources.len() as u64;
+	let mode = "copy";
+
+	let result: Result<Vec<FileEntry>, String> = (|| {
+		let mut results = Vec::new();
+		for (i, src) in sources.into_iter().enumerate() {
+			check_cancelled(&cancelled)?;
+			let src_path = PathBuf::from(&src);
+			let name = src_path
+				.file_name()
+				.ok_or_else(|| format!("Invalid source: {src}"))?
+				.to_string_lossy()
+				.into_owned();
+			let target = unique_dest(&dest, &name);
+			let index = (i as u64) + 1;
+			copy_path_with_progress(
+				&app, &state, &job_id, mode, &src_path, &target, &name, index, total, &cancelled,
+			)?;
+			results.push(entry_from_path(&target)?);
+		}
+		emit_progress(
+			&app,
+			&state,
+			TransferProgress {
+				job_id: job_id.clone(),
+				mode: mode.into(),
+				index: total,
+				total,
+				name: String::new(),
+				bytes_done: 1,
+				bytes_total: 1,
+				phase: "done".into(),
+				message: None,
+			},
+		);
+		Ok(results)
+	})();
+
+	if let Err(ref e) = result {
+		let phase = if e.contains("cancelled") {
+			"cancelled"
+		} else {
+			"error"
+		};
+		emit_progress(
+			&app,
+			&state,
+			TransferProgress {
+				job_id: job_id.clone(),
+				mode: mode.into(),
+				index: 0,
+				total,
+				name: String::new(),
+				bytes_done: 0,
+				bytes_total: 0,
+				phase: phase.into(),
+				message: Some(e.clone()),
+			},
+		);
 	}
-	Ok(results)
+	state.unregister(&job_id);
+	result
+}
+
+#[tauri::command]
+pub async fn move_entries(
+	app: AppHandle,
+	sources: Vec<String>,
+	dest_dir: String,
+	job_id: Option<String>,
+	state: State<'_, TransferState>,
+) -> Result<Vec<FileEntry>, String> {
+	let dest = PathBuf::from(&dest_dir);
+	if !dest.is_dir() {
+		return Err("Destination is not a directory".into());
+	}
+	let job_id = transfer_job_id(job_id);
+	let cancelled = state.register(&job_id);
+	let total = sources.len() as u64;
+	let mode = "move";
+
+	let result: Result<Vec<FileEntry>, String> = (|| {
+		let mut results = Vec::new();
+		for (i, src) in sources.into_iter().enumerate() {
+			check_cancelled(&cancelled)?;
+			let src_path = PathBuf::from(&src);
+			let name = src_path
+				.file_name()
+				.ok_or_else(|| format!("Invalid source: {src}"))?
+				.to_string_lossy()
+				.into_owned();
+			let target = unique_dest(&dest, &name);
+			let index = (i as u64) + 1;
+
+			emit_progress(
+				&app,
+				&state,
+				TransferProgress {
+					job_id: job_id.clone(),
+					mode: mode.into(),
+					index,
+					total,
+					name: name.clone(),
+					bytes_done: 0,
+					bytes_total: 0,
+					phase: "running".into(),
+					message: None,
+				},
+			);
+
+			let renamed = fs::rename(&src_path, &target).is_ok();
+			if !renamed {
+				copy_path_with_progress(
+					&app, &state, &job_id, mode, &src_path, &target, &name, index, total,
+					&cancelled,
+				)?;
+				if src_path.is_dir() {
+					fs::remove_dir_all(&src_path).map_err(|e| e.to_string())?;
+				} else {
+					fs::remove_file(&src_path).map_err(|e| e.to_string())?;
+				}
+			} else {
+				emit_progress(
+					&app,
+					&state,
+					TransferProgress {
+						job_id: job_id.clone(),
+						mode: mode.into(),
+						index,
+						total,
+						name: name.clone(),
+						bytes_done: 1,
+						bytes_total: 1,
+						phase: "running".into(),
+						message: None,
+					},
+				);
+			}
+			results.push(entry_from_path(&target)?);
+		}
+		emit_progress(
+			&app,
+			&state,
+			TransferProgress {
+				job_id: job_id.clone(),
+				mode: mode.into(),
+				index: total,
+				total,
+				name: String::new(),
+				bytes_done: 1,
+				bytes_total: 1,
+				phase: "done".into(),
+				message: None,
+			},
+		);
+		Ok(results)
+	})();
+
+	if let Err(ref e) = result {
+		let phase = if e.contains("cancelled") {
+			"cancelled"
+		} else {
+			"error"
+		};
+		emit_progress(
+			&app,
+			&state,
+			TransferProgress {
+				job_id: job_id.clone(),
+				mode: mode.into(),
+				index: 0,
+				total,
+				name: String::new(),
+				bytes_done: 0,
+				bytes_total: 0,
+				phase: phase.into(),
+				message: Some(e.clone()),
+			},
+		);
+	}
+	state.unregister(&job_id);
+	result
 }
 
 #[tauri::command]

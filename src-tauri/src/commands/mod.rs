@@ -5,4 +5,5 @@ pub mod path;
 pub mod recycle;
 pub mod registry;
 pub mod search;
+pub mod transfer;
 pub mod watch;
