@@ -1,6 +1,6 @@
 import {listen} from '@tauri-apps/api/event'
 import {getCurrentWindow} from '@tauri-apps/api/window'
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
 	CommandPalette,
 	type PaletteAction,
@@ -13,14 +13,24 @@ import {TabBar} from './components/explorer/TabBar'
 import {Toolbar} from './components/explorer/Toolbar'
 import {Toast} from './components/Toast'
 import {api} from './lib/api'
+import {
+	defaultContextMenuSettings,
+	type ContextMenuSettings,
+} from './lib/contextMenuConfig'
 import {t, type Locale} from './lib/i18n'
 import {displayPathTitle, HOME_PATH, isHomePath} from './lib/paths'
 import {
+	applyQuickAccessPrefs,
+	defaultQuickAccessPrefs,
+	defaultSort,
 	loadBookmarks,
+	loadContextMenuSettings,
 	loadDualPane,
 	loadLastPath,
 	loadLocale,
+	loadQuickAccessPrefs,
 	loadRecentPaths,
+	loadSession,
 	loadShowHidden,
 	loadShowPreview,
 	loadTagDefs,
@@ -28,9 +38,12 @@ import {
 	loadViewMode,
 	pushRecentPath,
 	saveBookmarks,
+	saveContextMenuSettings,
 	saveDualPane,
 	saveLastPath,
 	saveLocale,
+	saveQuickAccessPrefs,
+	saveSession,
 	saveShowHidden,
 	saveShowPreview,
 	saveTagMap,
@@ -42,6 +55,8 @@ import type {
 	ExplorerTab,
 	FileEntry,
 	KnownFolder,
+	QuickAccessPrefs,
+	SortState,
 	TagDef,
 	TagMap,
 	ViewMode,
@@ -85,8 +100,15 @@ export default function App() {
 	const [locale, setLocale] = useState<Locale>('en')
 	const [home, setHome] = useState('')
 	const [drives, setDrives] = useState<FileEntry[]>([])
-	const [known, setKnown] = useState<KnownFolder[]>([])
+	const [systemKnown, setSystemKnown] = useState<KnownFolder[]>([])
+	const [qaPrefs, setQaPrefs] = useState<QuickAccessPrefs>(
+		defaultQuickAccessPrefs,
+	)
 	const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+	const known = useMemo(
+		() => applyQuickAccessPrefs(systemKnown, qaPrefs),
+		[systemKnown, qaPrefs],
+	)
 	const [recent, setRecent] = useState<string[]>([])
 	const [tabs, setTabs] = useState<ExplorerTab[]>([])
 	const [activeTabId, setActiveTabId] = useState('')
@@ -100,6 +122,7 @@ export default function App() {
 	const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
 	const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null)
 	const [settingsOpen, setSettingsOpen] = useState(false)
+	const [settingsTab, setSettingsTab] = useState<'general' | 'menu'>('general')
 	const [toast, setToast] = useState<string | null>(null)
 	const [ready, setReady] = useState(false)
 	const [reloadToken, setReloadToken] = useState(0)
@@ -107,6 +130,10 @@ export default function App() {
 	const [tagDefs, setTagDefs] = useState<TagDef[]>([])
 	const [tagMap, setTagMap] = useState<TagMap>({})
 	const [tagFilter, setTagFilter] = useState<string | null>(null)
+	const [sort, setSort] = useState<SortState>(defaultSort)
+	const [menuSettings, setMenuSettings] = useState<ContextMenuSettings>(
+		defaultContextMenuSettings,
+	)
 
 	const activeTab = tabs.find(t => t.id === activeTabId) ?? tabs[0]
 	const currentPath = activeTab?.path ?? HOME_PATH
@@ -200,6 +227,9 @@ export default function App() {
 					startup,
 					tags,
 					tmap,
+					session,
+					menuCfg,
+					qa,
 				] = await Promise.all([
 					api.getHome(),
 					api.getDrives(),
@@ -215,11 +245,15 @@ export default function App() {
 					api.getStartupPath(),
 					loadTagDefs(),
 					loadTagMap(),
+					loadSession(),
+					loadContextMenuSettings(),
+					loadQuickAccessPrefs(),
 				])
 				if (cancelled) return
 				setHome(h)
 				setDrives(d)
-				setKnown(k)
+				setSystemKnown(k)
+				setQaPrefs(qa)
 				setViewMode(vm)
 				setBookmarks(bm)
 				setDualPane(dual)
@@ -229,15 +263,104 @@ export default function App() {
 				setRecent(rec)
 				setTagDefs(tags)
 				setTagMap(tmap)
-				const rawInitial =
-					startup || (last && !isHomePath(last) ? last : null) || HOME_PATH
-				const initial = isHomePath(rawInitial)
-					? HOME_PATH
-					: await resolveOpenPath(rawInitial)
-				const tab = newTab(initial)
-				setTabs([tab])
-				setActiveTabId(tab.id)
-				setRightPath(HOME_PATH)
+				setMenuSettings(menuCfg)
+
+				if (session) {
+					const restoredTabs: ExplorerTab[] = []
+					for (const tab of session.tabs) {
+						if (isHomePath(tab.path)) {
+							restoredTabs.push({
+								...tab,
+								title: displayPathTitle(tab.path),
+							})
+							continue
+						}
+						try {
+							const resolved = await resolveOpenPath(tab.path)
+							const history = await Promise.all(
+								tab.history.map(async hp =>
+									isHomePath(hp) ? hp : resolveOpenPath(hp).catch(() => hp),
+								),
+							)
+							const historyIndex = Math.min(
+								tab.historyIndex,
+								Math.max(0, history.length - 1),
+							)
+							const path = history[historyIndex] ?? resolved
+							restoredTabs.push({
+								...tab,
+								path,
+								history,
+								historyIndex,
+								title: displayPathTitle(path),
+							})
+						} catch {
+							/* drop missing tabs */
+						}
+					}
+					if (restoredTabs.length > 0) {
+						const activeId = restoredTabs.some(
+							t => t.id === session.activeTabId,
+						)
+							? session.activeTabId
+							: restoredTabs[0].id
+						setTabs(restoredTabs)
+						setActiveTabId(activeId)
+						setRightPath(
+							isHomePath(session.rightPath)
+								? HOME_PATH
+								: await resolveOpenPath(session.rightPath).catch(
+										() => HOME_PATH,
+									),
+						)
+						setActivePane(session.activePane)
+						setSort(session.sort)
+						setTagFilter(session.tagFilter)
+					} else {
+						const fallback =
+							(last && !isHomePath(last) ? last : null) || HOME_PATH
+						const initial = isHomePath(fallback)
+							? HOME_PATH
+							: await resolveOpenPath(fallback)
+						const tab = newTab(initial)
+						setTabs([tab])
+						setActiveTabId(tab.id)
+						setRightPath(HOME_PATH)
+					}
+				} else {
+					const rawInitial =
+						(last && !isHomePath(last) ? last : null) || HOME_PATH
+					const initial = isHomePath(rawInitial)
+						? HOME_PATH
+						: await resolveOpenPath(rawInitial)
+					const tab = newTab(initial)
+					setTabs([tab])
+					setActiveTabId(tab.id)
+					setRightPath(HOME_PATH)
+				}
+
+				if (startup) {
+					const p = await resolveOpenPath(startup)
+					setTabs(prev => {
+						if (prev.length === 0) {
+							const nt = newTab(p)
+							setActiveTabId(nt.id)
+							return [nt]
+						}
+						const existing = prev.find(
+							t => t.path.toLowerCase() === p.toLowerCase(),
+						)
+						if (existing) {
+							setActiveTabId(existing.id)
+							return prev
+						}
+						const nt = newTab(p)
+						setActiveTabId(nt.id)
+						return [...prev, nt]
+					})
+					void recordNavigate(p)
+				}
+
 				setReady(true)
 
 				unlisten = await listen<string>('open-path', async event => {
@@ -248,11 +371,16 @@ export default function App() {
 							setActiveTabId(nt.id)
 							return [nt]
 						}
-						return prev.map(tabItem =>
-							tabItem.id === (activeTabId || prev[0].id)
-								? updateTabPath(tabItem, p)
-								: tabItem,
+						const existing = prev.find(
+							t => t.path.toLowerCase() === p.toLowerCase(),
 						)
+						if (existing) {
+							setActiveTabId(existing.id)
+							return prev
+						}
+						const nt = newTab(p)
+						setActiveTabId(nt.id)
+						return [...prev, nt]
 					})
 					void recordNavigate(p)
 				})
@@ -268,6 +396,22 @@ export default function App() {
 			unlisten?.()
 		}
 	}, [])
+
+	useEffect(() => {
+		if (!ready || tabs.length === 0 || !activeTabId) return
+		const handle = window.setTimeout(() => {
+			void saveSession({
+				version: 1,
+				tabs,
+				activeTabId,
+				rightPath,
+				activePane,
+				sort,
+				tagFilter,
+			})
+		}, 300)
+		return () => window.clearTimeout(handle)
+	}, [ready, tabs, activeTabId, rightPath, activePane, sort, tagFilter])
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
@@ -349,6 +493,11 @@ export default function App() {
 		void saveLocale(l)
 	}
 
+	const changeMenuSettings = (s: ContextMenuSettings) => {
+		setMenuSettings(s)
+		void saveContextMenuSettings(s)
+	}
+
 	const goUp = async () => {
 		const base = activePane === 'right' && dualPane ? rightPath : currentPath
 		if (isHomePath(base)) return
@@ -386,6 +535,74 @@ export default function App() {
 		const next = bookmarks.filter(b => b.id !== id)
 		setBookmarks(next)
 		await saveBookmarks(next)
+	}
+
+	const renameBookmark = async (id: string, label: string) => {
+		const next = bookmarks.map(b => (b.id === id ? {...b, label} : b))
+		setBookmarks(next)
+		await saveBookmarks(next)
+	}
+
+	const reorderBookmarks = async (fromIndex: number, toIndex: number) => {
+		if (
+			fromIndex < 0 ||
+			toIndex < 0 ||
+			fromIndex >= bookmarks.length ||
+			toIndex >= bookmarks.length ||
+			fromIndex === toIndex
+		) {
+			return
+		}
+		const next = [...bookmarks]
+		const [moved] = next.splice(fromIndex, 1)
+		next.splice(toIndex, 0, moved)
+		setBookmarks(next)
+		await saveBookmarks(next)
+	}
+
+	const updateQaPrefs = async (next: QuickAccessPrefs) => {
+		setQaPrefs(next)
+		await saveQuickAccessPrefs(next)
+	}
+
+	const renameQuickAccess = async (id: string, label: string) => {
+		await updateQaPrefs({
+			...qaPrefs,
+			labels: {...qaPrefs.labels, [id]: label},
+			order: known.map(k => k.id),
+		})
+	}
+
+	const reorderQuickAccess = async (fromIndex: number, toIndex: number) => {
+		if (
+			fromIndex < 0 ||
+			toIndex < 0 ||
+			fromIndex >= known.length ||
+			toIndex >= known.length ||
+			fromIndex === toIndex
+		) {
+			return
+		}
+		const ids = known.map(k => k.id)
+		const [moved] = ids.splice(fromIndex, 1)
+		ids.splice(toIndex, 0, moved)
+		await updateQaPrefs({...qaPrefs, order: ids})
+	}
+
+	const hideQuickAccess = async (id: string) => {
+		const hidden = qaPrefs.hidden.includes(id)
+			? qaPrefs.hidden
+			: [...qaPrefs.hidden, id]
+		await updateQaPrefs({
+			...qaPrefs,
+			hidden,
+			order: known.filter(k => k.id !== id).map(k => k.id),
+		})
+	}
+
+	const restoreQuickAccess = async () => {
+		await updateQaPrefs(defaultQuickAccessPrefs())
+		setToast(t('quickAccessRestored', locale))
 	}
 
 	const activeBasePath =
@@ -568,6 +785,9 @@ export default function App() {
 		tagDefs,
 		tagMap,
 		tagFilter,
+		sort,
+		menuSettings,
+		onSortChange: setSort,
 		onClipboard: setClipboard,
 		onToast: setToast,
 		onPreviewEntry: setPreviewEntry,
@@ -576,6 +796,10 @@ export default function App() {
 			const tab = newTab(p)
 			setTabs(prev => [...prev, tab])
 			setActiveTabId(tab.id)
+		},
+		onCustomizeMenu: () => {
+			setSettingsTab('menu')
+			setSettingsOpen(true)
 		},
 		onGoUp: () => void goUp(),
 		onToggleTag: toggleTagOnPaths,
@@ -616,7 +840,10 @@ export default function App() {
 				onToggleHidden={toggleHidden}
 				onViewMode={changeView}
 				onSearch={setSearchQuery}
-				onSettings={() => setSettingsOpen(true)}
+				onSettings={() => {
+					setSettingsTab('general')
+					setSettingsOpen(true)
+				}}
 				onNewTab={() => {
 					const tab = newTab(HOME_PATH)
 					setTabs(prev => [...prev, tab])
@@ -637,6 +864,11 @@ export default function App() {
 					currentPath={currentPath}
 					onNavigate={navigateActive}
 					onRemoveBookmark={id => void removeBookmark(id)}
+					onRenameBookmark={(id, label) => void renameBookmark(id, label)}
+					onReorderBookmarks={(from, to) => void reorderBookmarks(from, to)}
+					onRenameQuickAccess={(id, label) => void renameQuickAccess(id, label)}
+					onReorderQuickAccess={(from, to) => void reorderQuickAccess(from, to)}
+					onHideQuickAccess={id => void hideQuickAccess(id)}
 					onTagFilter={setTagFilter}
 				/>
 				<div className="flex min-w-0 flex-1">
@@ -678,6 +910,10 @@ export default function App() {
 				<SettingsModal
 					locale={locale}
 					onLocale={changeLocale}
+					menuSettings={menuSettings}
+					onMenuSettings={changeMenuSettings}
+					onRestoreQuickAccess={() => void restoreQuickAccess()}
+					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}
 					onToast={setToast}
 				/>

@@ -1,4 +1,12 @@
-import {t, type Locale} from '../../lib/i18n'
+import {useMemo, useState} from 'react'
+import {
+	actionLabelKey,
+	matchesTarget,
+	type BuiltinMenuAction,
+	type ContextMenuSettings,
+	type OpenWithApp,
+} from '../../lib/contextMenuConfig'
+import {t, type Locale, type MessageKey} from '../../lib/i18n'
 import type {TagDef} from '../../types/fs'
 
 export interface ContextMenuState {
@@ -15,20 +23,9 @@ interface ContextMenuProps {
 	dualPane: boolean
 	tagDefs: TagDef[]
 	activeTagIds: string[]
-	onOpen: () => void
-	onOpenSystem: () => void
-	onOpenNewTab: () => void
-	onOpenOtherPane: () => void
-	onCopy: () => void
-	onCut: () => void
-	onPaste: () => void
-	onRename: () => void
-	onDelete: () => void
-	onNewFolder: () => void
-	onNewFile: () => void
-	onCopyPath: () => void
-	onProperties: () => void
-	onAddBookmark: () => void
+	menuSettings: ContextMenuSettings
+	onAction: (action: BuiltinMenuAction) => void
+	onOpenWith: (app: OpenWithApp) => void
 	onToggleTag: (tagId: string) => void
 	onClose: () => void
 }
@@ -40,27 +37,47 @@ export function ContextMenu({
 	dualPane,
 	tagDefs,
 	activeTagIds,
-	onOpen,
-	onOpenSystem,
-	onOpenNewTab,
-	onOpenOtherPane,
-	onCopy,
-	onCut,
-	onPaste,
-	onRename,
-	onDelete,
-	onNewFolder,
-	onNewFile,
-	onCopyPath,
-	onProperties,
-	onAddBookmark,
+	menuSettings,
+	onAction,
+	onOpenWith,
 	onToggleTag,
 	onClose,
 }: ContextMenuProps) {
+	const [openWithOpen, setOpenWithOpen] = useState(false)
+	const [tagsOpen, setTagsOpen] = useState(false)
+	const L = (key: MessageKey) => t(key, locale)
+
+	const ctx = useMemo(
+		() => ({
+			hasPath: !!menu?.path,
+			isDir: !!menu?.isDir,
+		}),
+		[menu],
+	)
+
 	if (!menu) return null
-	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
+
 	const item =
 		'block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--xp-hover)] disabled:opacity-40'
+	const rowCls = item
+
+	const visibleItems = menuSettings.items.filter(
+		i => i.enabled && matchesTarget(i.when, ctx),
+	)
+
+	const openWithApps = menuSettings.openWith.filter(a => {
+		if (!a.enabled) return false
+		if (!menu.path) return false
+		if (a.targets === 'both') return true
+		if (a.targets === 'dir') return menu.isDir
+		return !menu.isDir
+	})
+
+	const run = (action: BuiltinMenuAction) => {
+		if (action === 'openOtherPane' && !dualPane) return
+		if (action === 'paste' && !canPaste) return
+		onAction(action)
+	}
 
 	return (
 		<>
@@ -73,145 +90,143 @@ export function ContextMenu({
 				}}
 			/>
 			<div
-				className="fixed z-50 min-w-[200px] rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl"
+				className="fixed z-50 max-h-[min(80vh,520px)] min-w-[220px] overflow-auto rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl"
 				style={{left: menu.x, top: menu.y}}
 			>
-				{menu.path && (
-					<>
-						<button
-							type="button"
-							className={item}
-							onClick={onOpen}
-						>
-							{L('open')}
-						</button>
-						<button
-							type="button"
-							className={item}
-							onClick={onOpenSystem}
-						>
-							{L('openSystem')}
-						</button>
-						{menu.isDir && (
-							<>
+				{visibleItems.map((cfg, idx) => {
+					if (cfg.action === 'separator') {
+						const prev = visibleItems[idx - 1]
+						const next = visibleItems[idx + 1]
+						if (!prev || !next || prev.action === 'separator') return null
+						return (
+							<hr
+								key={cfg.id}
+								className="my-1 border-[var(--xp-border)]"
+							/>
+						)
+					}
+
+					if (cfg.action === 'openWith') {
+						if (openWithApps.length === 0) return null
+						return (
+							<div
+								key={cfg.id}
+								className="relative"
+							>
 								<button
 									type="button"
-									className={item}
-									onClick={onOpenNewTab}
+									className={`${rowCls} flex items-center justify-between`}
+									onMouseEnter={() => {
+										setOpenWithOpen(true)
+										setTagsOpen(false)
+									}}
+									onClick={() => setOpenWithOpen(v => !v)}
 								>
-									{L('openNewTab')}
+									<span>{L('openWith')}</span>
+									<span className="opacity-50">›</span>
 								</button>
-								{dualPane && (
-									<button
-										type="button"
-										className={item}
-										onClick={onOpenOtherPane}
-									>
-										{L('openOtherPane')}
-									</button>
+								{openWithOpen && (
+									<div className="absolute top-0 left-full z-50 ml-0.5 min-w-[180px] rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl">
+										{openWithApps.map(app => (
+											<button
+												key={app.id}
+												type="button"
+												className={rowCls}
+												onClick={() => onOpenWith(app)}
+											>
+												{app.label}
+											</button>
+										))}
+									</div>
 								)}
+							</div>
+						)
+					}
+
+					if (cfg.action === 'tags') {
+						return (
+							<div
+								key={cfg.id}
+								className="relative"
+							>
 								<button
 									type="button"
-									className={item}
-									onClick={onAddBookmark}
+									className={`${rowCls} flex items-center justify-between`}
+									onMouseEnter={() => {
+										setTagsOpen(true)
+										setOpenWithOpen(false)
+									}}
+									onClick={() => setTagsOpen(v => !v)}
 								>
-									{L('addBookmark')}
+									<span>{L('tags')}</span>
+									<span className="opacity-50">›</span>
 								</button>
-							</>
-						)}
+								{tagsOpen && (
+									<div className="absolute top-0 left-full z-50 ml-0.5 min-w-[160px] rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl">
+										{tagDefs.map(tag => {
+											const on = activeTagIds.includes(tag.id)
+											return (
+												<button
+													key={tag.id}
+													type="button"
+													className={rowCls}
+													onClick={() => onToggleTag(tag.id)}
+												>
+													<span
+														className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+														style={{background: tag.color}}
+													/>
+													{on ? '✓ ' : ''}
+													{tag.name}
+												</button>
+											)
+										})}
+									</div>
+								)}
+							</div>
+						)
+					}
+
+					if (cfg.action.startsWith('ow:')) {
+						const appId = cfg.action.slice(3)
+						const app = menuSettings.openWith.find(a => a.id === appId)
+						if (!app || !app.enabled) return null
+						if (app.targets === 'dir' && !menu.isDir) return null
+						if (app.targets === 'file' && menu.isDir) return null
+						return (
+							<button
+								key={cfg.id}
+								type="button"
+								className={rowCls}
+								onClick={() => onOpenWith(app)}
+							>
+								{app.label}
+							</button>
+						)
+					}
+
+					const action = cfg.action as BuiltinMenuAction
+					if (action === 'openOtherPane' && !dualPane) return null
+					const labelKey = actionLabelKey(action)
+					if (!labelKey) return null
+					const disabled = action === 'paste' && !canPaste
+
+					return (
 						<button
+							key={cfg.id}
 							type="button"
-							className={item}
-							onClick={onCopyPath}
+							className={`${rowCls} ${action === 'delete' ? 'text-[var(--xp-danger)]' : ''}`}
+							disabled={disabled}
+							onMouseEnter={() => {
+								setOpenWithOpen(false)
+								setTagsOpen(false)
+							}}
+							onClick={() => run(action)}
 						>
-							{L('copyPath')}
+							{L(labelKey as MessageKey)}
 						</button>
-						<button
-							type="button"
-							className={item}
-							onClick={onProperties}
-						>
-							{L('properties')}
-						</button>
-						<hr className="my-1 border-[var(--xp-border)]" />
-						<div className="px-3 py-1 text-[10px] uppercase tracking-wide opacity-50">
-							{L('tags')}
-						</div>
-						{tagDefs.map(tag => {
-							const on = activeTagIds.includes(tag.id)
-							return (
-								<button
-									key={tag.id}
-									type="button"
-									className={item}
-									onClick={() => onToggleTag(tag.id)}
-								>
-									<span
-										className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
-										style={{background: tag.color}}
-									/>
-									{on ? '✓ ' : ''}
-									{tag.name}
-								</button>
-							)
-						})}
-						<hr className="my-1 border-[var(--xp-border)]" />
-						<button
-							type="button"
-							className={item}
-							onClick={onCopy}
-						>
-							{L('copy')}
-						</button>
-						<button
-							type="button"
-							className={item}
-							onClick={onCut}
-						>
-							{L('cut')}
-						</button>
-					</>
-				)}
-				<button
-					type="button"
-					className={item}
-					disabled={!canPaste}
-					onClick={onPaste}
-				>
-					{L('paste')}
-				</button>
-				<button
-					type="button"
-					className={item}
-					onClick={onNewFolder}
-				>
-					{L('newFolder')}
-				</button>
-				<button
-					type="button"
-					className={item}
-					onClick={onNewFile}
-				>
-					{L('newFile')}
-				</button>
-				{menu.path && (
-					<>
-						<button
-							type="button"
-							className={item}
-							onClick={onRename}
-						>
-							{L('rename')}
-						</button>
-						<button
-							type="button"
-							className={`${item} text-[var(--xp-danger)]`}
-							onClick={onDelete}
-						>
-							{L('delete')}
-						</button>
-					</>
-				)}
+					)
+				})}
 			</div>
 		</>
 	)

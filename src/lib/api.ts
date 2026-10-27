@@ -1,5 +1,6 @@
 import {invoke} from '@tauri-apps/api/core'
 import type {
+	EntryProperties,
 	FileEntry,
 	KnownFolder,
 	RegistryBackupStatus,
@@ -19,6 +20,11 @@ export const api = {
 	moveEntries: (sources: string[], destDir: string) =>
 		invoke<FileEntry[]>('move_entries', {sources, destDir}),
 	openPath: (path: string) => invoke<void>('open_path', {path}),
+	openWith: (path: string, program: string, args: string[] = []) =>
+		invoke<void>('open_with', {path, program, args}),
+	openInNewWindow: (path: string) => invoke<void>('open_in_new_window', {path}),
+	getEntryProperties: (path: string) =>
+		invoke<EntryProperties>('get_entry_properties', {path}),
 	readTextPreview: (path: string, maxBytes?: number) =>
 		invoke<string>('read_text_preview', {path, maxBytes}),
 	getHome: () => invoke<string>('get_home'),

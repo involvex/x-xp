@@ -4,7 +4,9 @@ use fs_extra::file::{copy as copy_file, CopyOptions as FileCopyOptions};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::SystemTime;
+use walkdir::WalkDir;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -256,6 +258,162 @@ pub async fn move_entries(sources: Vec<String>, dest_dir: String) -> Result<Vec<
 #[tauri::command]
 pub async fn open_path(path: String) -> Result<(), String> {
 	open::that(path).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EntryProperties {
+	pub name: String,
+	pub path: String,
+	pub location: String,
+	pub is_dir: bool,
+	pub kind: String,
+	pub extension: String,
+	pub size: u64,
+	pub size_on_disk: u64,
+	pub file_count: u64,
+	pub folder_count: u64,
+	pub created: Option<i64>,
+	pub modified: Option<i64>,
+	pub readonly: bool,
+	pub hidden: bool,
+}
+
+fn folder_aggregate(path: &Path) -> (u64, u64, u64) {
+	let mut size = 0u64;
+	let mut files = 0u64;
+	let mut folders = 0u64;
+	for entry in WalkDir::new(path)
+		.follow_links(false)
+		.into_iter()
+		.filter_map(|e| e.ok())
+	{
+		let p = entry.path();
+		if p == path {
+			continue;
+		}
+		if entry.file_type().is_dir() {
+			folders += 1;
+		} else if entry.file_type().is_file() {
+			files += 1;
+			if let Ok(meta) = entry.metadata() {
+				size += meta.len();
+			}
+		}
+	}
+	(size, files, folders)
+}
+
+#[tauri::command]
+pub async fn get_entry_properties(path: String) -> Result<EntryProperties, String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let p = PathBuf::from(&path);
+		if !p.exists() {
+			return Err(format!("Path does not exist: {path}"));
+		}
+		let metadata = fs::metadata(&p).map_err(|e| e.to_string())?;
+		let name = p
+			.file_name()
+			.map(|n| n.to_string_lossy().into_owned())
+			.unwrap_or_else(|| p.to_string_lossy().into_owned());
+		let location = p
+			.parent()
+			.map(|parent| parent.to_string_lossy().into_owned())
+			.unwrap_or_default();
+		let extension = p
+			.extension()
+			.map(|e| e.to_string_lossy().into_owned())
+			.unwrap_or_default();
+		let created = metadata.created().ok().and_then(system_time_to_millis);
+		let modified = metadata.modified().ok().and_then(system_time_to_millis);
+		let readonly = metadata.permissions().readonly();
+		let hidden = is_hidden(&p, &name);
+		let is_dir = metadata.is_dir();
+
+		let (size, size_on_disk, file_count, folder_count, kind) = if is_dir {
+			let (s, files, folders) = folder_aggregate(&p);
+			(s, s, files, folders, "File folder".to_string())
+		} else {
+			let len = metadata.len();
+			let kind = if extension.is_empty() {
+				"File".to_string()
+			} else {
+				format!("{} File", extension.to_uppercase())
+			};
+			(len, len, 0, 0, kind)
+		};
+
+		Ok(EntryProperties {
+			name,
+			path: p.to_string_lossy().into_owned(),
+			location,
+			is_dir,
+			kind,
+			extension,
+			size,
+			size_on_disk,
+			file_count,
+			folder_count,
+			created,
+			modified,
+			readonly,
+			hidden,
+		})
+	})
+	.await
+	.map_err(|e| e.to_string())?
+}
+
+/// Launch `program` with `args`. Use `{path}` placeholder; if missing, path is appended.
+#[tauri::command]
+pub async fn open_with(path: String, program: String, args: Vec<String>) -> Result<(), String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let mut cmd = Command::new(&program);
+		let mut replaced = false;
+		for a in &args {
+			if a.contains("{path}") {
+				replaced = true;
+				cmd.arg(a.replace("{path}", &path));
+			} else {
+				cmd.arg(a);
+			}
+		}
+		if !replaced {
+			cmd.arg(&path);
+		}
+		#[cfg(windows)]
+		{
+			use std::os::windows::process::CommandExt;
+			const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+			// Keep console apps visible when opening terminals; only hide for GUI-ish launches
+			if !program.to_lowercase().contains("cmd")
+				&& !program.to_lowercase().contains("powershell")
+				&& !program.to_lowercase().contains("wt")
+				&& !program.to_lowercase().contains("terminal")
+			{
+				cmd.creation_flags(CREATE_NO_WINDOW);
+			}
+		}
+		cmd.spawn()
+			.map_err(|e| format!("Failed to launch {program}: {e}"))?;
+		Ok(())
+	})
+	.await
+	.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn open_in_new_window(path: String) -> Result<(), String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+		Command::new(exe)
+			.arg(&path)
+			.spawn()
+			.map_err(|e| e.to_string())?;
+		Ok(())
+	})
+	.await
+	.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

@@ -1,5 +1,21 @@
 import {LazyStore} from '@tauri-apps/plugin-store'
-import type {Bookmark, TagDef, TagMap, ViewMode} from '../types/fs'
+import type {
+	Bookmark,
+	ExplorerTab,
+	KnownFolder,
+	QuickAccessPrefs,
+	SessionSnapshot,
+	SortDir,
+	SortKey,
+	SortState,
+	TagDef,
+	TagMap,
+	ViewMode,
+} from '../types/fs'
+import {
+	defaultContextMenuSettings,
+	type ContextMenuSettings,
+} from './contextMenuConfig'
 import type {Locale} from './i18n'
 import {HOME_PATH, isHomePath} from './paths'
 
@@ -112,6 +128,151 @@ export async function loadTagMap(): Promise<TagMap> {
 export async function saveTagMap(map: TagMap): Promise<void> {
 	await store.set('tagMap', map)
 	await store.save()
+}
+
+const SORT_KEYS: SortKey[] = ['name', 'size', 'modified']
+const SORT_DIRS: SortDir[] = ['asc', 'desc']
+
+export function defaultSort(): SortState {
+	return {key: 'name', dir: 'asc'}
+}
+
+function sanitizeSort(raw: unknown): SortState {
+	if (!raw || typeof raw !== 'object') return defaultSort()
+	const s = raw as Partial<SortState>
+	const key = SORT_KEYS.includes(s.key as SortKey) ? (s.key as SortKey) : 'name'
+	const dir = SORT_DIRS.includes(s.dir as SortDir) ? (s.dir as SortDir) : 'asc'
+	return {key, dir}
+}
+
+function sanitizeTab(raw: unknown): ExplorerTab | null {
+	if (!raw || typeof raw !== 'object') return null
+	const t = raw as Partial<ExplorerTab>
+	if (typeof t.path !== 'string' || !t.path) return null
+	const history = Array.isArray(t.history)
+		? t.history.filter((p): p is string => typeof p === 'string' && !!p)
+		: [t.path]
+	const historyIndex =
+		typeof t.historyIndex === 'number'
+			? Math.min(Math.max(0, Math.floor(t.historyIndex)), history.length - 1)
+			: history.length - 1
+	const path =
+		typeof history[historyIndex] === 'string' ? history[historyIndex] : t.path
+	return {
+		id: typeof t.id === 'string' && t.id ? t.id : crypto.randomUUID(),
+		title: typeof t.title === 'string' && t.title ? t.title : path,
+		path,
+		history: history.length > 0 ? history : [path],
+		historyIndex,
+	}
+}
+
+export async function loadSession(): Promise<SessionSnapshot | null> {
+	const raw = await store.get<SessionSnapshot>('session')
+	if (!raw || raw.version !== 1 || !Array.isArray(raw.tabs)) return null
+	const tabs = raw.tabs.map(sanitizeTab).filter((t): t is ExplorerTab => !!t)
+	if (tabs.length === 0) return null
+	const activeTabId =
+		typeof raw.activeTabId === 'string' &&
+		tabs.some(t => t.id === raw.activeTabId)
+			? raw.activeTabId
+			: tabs[0].id
+	return {
+		version: 1,
+		tabs,
+		activeTabId,
+		rightPath:
+			typeof raw.rightPath === 'string' && raw.rightPath
+				? raw.rightPath
+				: HOME_PATH,
+		activePane: raw.activePane === 'right' ? 'right' : 'left',
+		sort: sanitizeSort(raw.sort),
+		tagFilter: typeof raw.tagFilter === 'string' ? raw.tagFilter : null,
+	}
+}
+
+export async function saveSession(session: SessionSnapshot): Promise<void> {
+	await store.set('session', session)
+	await store.save()
+}
+
+export async function loadContextMenuSettings(): Promise<ContextMenuSettings> {
+	const raw = await store.get<ContextMenuSettings>('contextMenu')
+	if (!raw || raw.version !== 1 || !Array.isArray(raw.items)) {
+		return defaultContextMenuSettings()
+	}
+	const defaults = defaultContextMenuSettings()
+	return {
+		version: 1,
+		items: raw.items.length > 0 ? raw.items : defaults.items,
+		openWith:
+			Array.isArray(raw.openWith) && raw.openWith.length > 0
+				? raw.openWith
+				: defaults.openWith,
+	}
+}
+
+export async function saveContextMenuSettings(
+	settings: ContextMenuSettings,
+): Promise<void> {
+	await store.set('contextMenu', settings)
+	await store.save()
+}
+
+export function defaultQuickAccessPrefs(): QuickAccessPrefs {
+	return {order: [], labels: {}, hidden: []}
+}
+
+export async function loadQuickAccessPrefs(): Promise<QuickAccessPrefs> {
+	const raw = await store.get<Partial<QuickAccessPrefs>>('quickAccess')
+	if (!raw || typeof raw !== 'object') return defaultQuickAccessPrefs()
+	return {
+		order: Array.isArray(raw.order)
+			? raw.order.filter((id): id is string => typeof id === 'string')
+			: [],
+		labels:
+			raw.labels && typeof raw.labels === 'object' && !Array.isArray(raw.labels)
+				? Object.fromEntries(
+						Object.entries(raw.labels).filter(
+							(e): e is [string, string] => typeof e[1] === 'string',
+						),
+					)
+				: {},
+		hidden: Array.isArray(raw.hidden)
+			? raw.hidden.filter((id): id is string => typeof id === 'string')
+			: [],
+	}
+}
+
+export async function saveQuickAccessPrefs(
+	prefs: QuickAccessPrefs,
+): Promise<void> {
+	await store.set('quickAccess', prefs)
+	await store.save()
+}
+
+/** Apply saved order / labels / hidden to system known folders. */
+export function applyQuickAccessPrefs(
+	known: KnownFolder[],
+	prefs: QuickAccessPrefs,
+): KnownFolder[] {
+	const hidden = new Set(prefs.hidden)
+	const byId = new Map(known.map(k => [k.id, k]))
+	const result: KnownFolder[] = []
+
+	for (const id of prefs.order) {
+		const k = byId.get(id)
+		if (!k || hidden.has(id)) continue
+		result.push({...k, label: prefs.labels[id] ?? k.label})
+		byId.delete(id)
+	}
+
+	for (const k of known) {
+		if (!byId.has(k.id) || hidden.has(k.id)) continue
+		result.push({...k, label: prefs.labels[k.id] ?? k.label})
+	}
+
+	return result
 }
 
 export {DEFAULT_TAGS, HOME_PATH}

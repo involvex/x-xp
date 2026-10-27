@@ -2,7 +2,8 @@ mod commands;
 
 use commands::fs::{
 	copy_entries, create_dir, create_file, delete_entries, format_modified, get_drives,
-	move_entries, open_path, read_dir, read_text_preview, rename_entry,
+	get_entry_properties, move_entries, open_in_new_window, open_path, open_with, read_dir,
+	read_text_preview, rename_entry,
 };
 use commands::path::{
 	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path,
@@ -63,6 +64,9 @@ pub fn run() {
 			copy_entries,
 			move_entries,
 			open_path,
+			open_with,
+			open_in_new_window,
+			get_entry_properties,
 			read_text_preview,
 			format_modified,
 			get_home,

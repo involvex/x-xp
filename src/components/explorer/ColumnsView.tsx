@@ -1,7 +1,8 @@
 import {useEffect, useState} from 'react'
 import {api} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
-import type {FileEntry, TagDef, TagMap} from '../../types/fs'
+import {sortEntries} from '../../lib/sort'
+import type {FileEntry, SortState, TagDef, TagMap} from '../../types/fs'
 import {FileIcon} from './FileIcon'
 
 interface ColumnsViewProps {
@@ -12,6 +13,7 @@ interface ColumnsViewProps {
 	tagDefs: TagDef[]
 	tagMap: TagMap
 	reloadToken: number
+	sort: SortState
 	onSelect: (entry: FileEntry, e: React.MouseEvent) => void
 	onOpenFile: (entry: FileEntry) => void
 	onNavigateRoot: (path: string) => void
@@ -21,13 +23,11 @@ interface ColumnsViewProps {
 async function loadColumn(
 	path: string,
 	showHidden: boolean,
+	sort: SortState,
 ): Promise<FileEntry[]> {
 	const entries = await api.readDir(path)
 	const filtered = showHidden ? entries : entries.filter(e => !e.hidden)
-	return [...filtered].sort((a, b) => {
-		if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-		return a.name.localeCompare(b.name, undefined, {sensitivity: 'base'})
-	})
+	return sortEntries(filtered, sort)
 }
 
 export function ColumnsView({
@@ -38,6 +38,7 @@ export function ColumnsView({
 	tagDefs,
 	tagMap,
 	reloadToken,
+	sort,
 	onSelect,
 	onOpenFile,
 	onNavigateRoot,
@@ -64,7 +65,10 @@ export function ColumnsView({
 			const next: {path: string; entries: FileEntry[]}[] = []
 			for (const p of trail) {
 				try {
-					next.push({path: p, entries: await loadColumn(p, showHidden)})
+					next.push({
+						path: p,
+						entries: await loadColumn(p, showHidden, sort),
+					})
 				} catch {
 					next.push({path: p, entries: []})
 					break
@@ -75,7 +79,7 @@ export function ColumnsView({
 		return () => {
 			cancelled = true
 		}
-	}, [trail, showHidden, reloadToken])
+	}, [trail, showHidden, reloadToken, sort])
 
 	const openDirInColumns = (entry: FileEntry, columnIndex: number) => {
 		const nextTrail = [...trail.slice(0, columnIndex + 1), entry.path]

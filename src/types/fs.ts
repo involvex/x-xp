@@ -64,8 +64,43 @@ export interface ExplorerTab {
 	historyIndex: number
 }
 
+/** Persisted window session restored on launch. */
+export interface SessionSnapshot {
+	version: 1
+	tabs: ExplorerTab[]
+	activeTabId: string
+	rightPath: string
+	activePane: 'left' | 'right'
+	sort: SortState
+	tagFilter: string | null
+}
+
 export interface Bookmark {
 	id: string
 	label: string
 	path: string
+}
+
+/** User prefs for Quick access / known folders sidebar section. */
+export interface QuickAccessPrefs {
+	order: string[]
+	labels: Record<string, string>
+	hidden: string[]
+}
+
+export interface EntryProperties {
+	name: string
+	path: string
+	location: string
+	isDir: boolean
+	kind: string
+	extension: string
+	size: number
+	sizeOnDisk: number
+	fileCount: number
+	folderCount: number
+	created: number | null
+	modified: number | null
+	readonly: boolean
+	hidden: boolean
 }

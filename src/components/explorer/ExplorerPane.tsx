@@ -1,7 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {api, pathBasename, pathJoin} from '../../lib/api'
+import type {
+	BuiltinMenuAction,
+	ContextMenuSettings,
+} from '../../lib/contextMenuConfig'
 import {t, type Locale} from '../../lib/i18n'
 import {isHomePath} from '../../lib/paths'
+import {sortEntries} from '../../lib/sort'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -38,6 +43,9 @@ interface ExplorerPaneProps {
 	tagDefs: TagDef[]
 	tagMap: TagMap
 	tagFilter: string | null
+	sort: SortState
+	menuSettings: ContextMenuSettings
+	onSortChange: (sort: SortState) => void
 	onPathChange: (path: string) => void
 	onClipboard: (clip: ClipboardState | null) => void
 	onFocus: () => void
@@ -46,23 +54,10 @@ interface ExplorerPaneProps {
 	onAddBookmark: (path: string, label: string) => void
 	onOpenNewTab: (path: string) => void
 	onOpenOtherPane: (path: string) => void
+	onCustomizeMenu: () => void
 	onGoUp: () => void
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
-}
-
-function sortEntries(entries: FileEntry[], sort: SortState): FileEntry[] {
-	const dir = sort.dir === 'asc' ? 1 : -1
-	return [...entries].sort((a, b) => {
-		if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-		const cmp =
-			sort.key === 'size'
-				? a.size - b.size
-				: sort.key === 'modified'
-					? (a.modified ?? 0) - (b.modified ?? 0)
-					: a.name.localeCompare(b.name, undefined, {sensitivity: 'base'})
-		return cmp * dir
-	})
 }
 
 function parseDragPaths(e: React.DragEvent): string[] {
@@ -95,6 +90,9 @@ export function ExplorerPane({
 	tagDefs,
 	tagMap,
 	tagFilter,
+	sort,
+	menuSettings,
+	onSortChange,
 	onPathChange,
 	onClipboard,
 	onFocus,
@@ -103,6 +101,7 @@ export function ExplorerPane({
 	onAddBookmark,
 	onOpenNewTab,
 	onOpenOtherPane,
+	onCustomizeMenu,
 	onGoUp,
 	onToggleTag,
 	onDropComplete,
@@ -116,15 +115,14 @@ export function ExplorerPane({
 	const [searchEntries, setSearchEntries] = useState<FileEntry[] | null>(null)
 	const [truncated, setTruncated] = useState(false)
 	const [loading, setLoading] = useState(false)
-	const [sort, setSort] = useState<SortState>({key: 'name', dir: 'asc'})
 	const [dropTarget, setDropTarget] = useState<string | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
 	const atHome = isHomePath(path)
 
 	const toggleSort = (key: SortKey) => {
-		setSort(prev =>
-			prev.key === key
-				? {key, dir: prev.dir === 'asc' ? 'desc' : 'asc'}
+		onSortChange(
+			sort.key === key
+				? {key, dir: sort.dir === 'asc' ? 'desc' : 'asc'}
 				: {key, dir: key === 'name' ? 'asc' : 'desc'},
 		)
 	}
@@ -461,6 +459,7 @@ export function ExplorerPane({
 					tagDefs={tagDefs}
 					tagMap={tagMap}
 					reloadToken={reloadToken}
+					sort={sort}
 					onSelect={onClick}
 					onOpenFile={entry => void openEntry(entry)}
 					onNavigateRoot={navigate}
@@ -526,79 +525,90 @@ export function ExplorerPane({
 				dualPane={dualPane}
 				tagDefs={tagDefs}
 				activeTagIds={menu?.path ? (tagMap[menu.path] ?? []) : []}
+				menuSettings={menuSettings}
 				onClose={() => setMenu(null)}
-				onOpen={() => {
-					const entry =
-						visible.find(x => x.path === menu?.path) ??
-						entries.find(x => x.path === menu?.path)
-					if (entry) void openEntry(entry)
-					else if (menu?.path && menu.isDir) navigate(menu.path)
-					setMenu(null)
-				}}
-				onOpenSystem={() => {
-					if (menu?.path)
-						void api.openPath(menu.path).catch(e => onToast(String(e)))
-					setMenu(null)
-				}}
-				onOpenNewTab={() => {
-					if (menu?.path && menu.isDir) onOpenNewTab(menu.path)
-					setMenu(null)
-				}}
-				onOpenOtherPane={() => {
-					if (menu?.path && menu.isDir) onOpenOtherPane(menu.path)
-					setMenu(null)
-				}}
-				onCopy={() => {
-					onClipboard({mode: 'copy', paths: [...selected]})
-					setMenu(null)
-				}}
-				onCut={() => {
-					onClipboard({mode: 'cut', paths: [...selected]})
-					setMenu(null)
-				}}
-				onPaste={() => {
-					void doPaste()
-					setMenu(null)
-				}}
-				onRename={startRename}
-				onDelete={() => {
-					void doDelete()
-					setMenu(null)
-				}}
-				onNewFolder={() => {
-					void doNewFolder()
-					setMenu(null)
-				}}
-				onNewFile={() => {
-					void doNewFile()
-					setMenu(null)
-				}}
-				onCopyPath={() => {
-					if (menu?.path) {
-						void navigator.clipboard.writeText(menu.path).then(
-							() => onToast(t('pathCopied', locale)),
-							e => onToast(String(e)),
-						)
-					}
-					setMenu(null)
-				}}
-				onProperties={() => {
-					const entry =
-						visible.find(x => x.path === menu?.path) ??
-						entries.find(x => x.path === menu?.path)
-					if (entry) setPropsEntry(entry)
-					setMenu(null)
-				}}
-				onAddBookmark={() => {
-					if (menu?.path && menu.isDir) {
-						onAddBookmark(menu.path, pathBasename(menu.path) || menu.path)
-					}
+				onOpenWith={app => {
+					if (!menu?.path) return
+					void api
+						.openWith(menu.path, app.program, app.args)
+						.catch(e => onToast(String(e)))
 					setMenu(null)
 				}}
 				onToggleTag={tagId => {
 					const paths =
 						selected.size > 0 ? [...selected] : menu?.path ? [menu.path] : []
 					if (paths.length > 0) onToggleTag(paths, tagId)
+				}}
+				onAction={(action: BuiltinMenuAction) => {
+					const entry =
+						visible.find(x => x.path === menu?.path) ??
+						entries.find(x => x.path === menu?.path)
+					switch (action) {
+						case 'open':
+							if (entry) void openEntry(entry)
+							else if (menu?.path && menu.isDir) navigate(menu.path)
+							break
+						case 'openSystem':
+							if (menu?.path)
+								void api.openPath(menu.path).catch(e => onToast(String(e)))
+							break
+						case 'openNewTab':
+							if (menu?.path && menu.isDir) onOpenNewTab(menu.path)
+							break
+						case 'openNewWindow':
+							if (menu?.path)
+								void api
+									.openInNewWindow(menu.path)
+									.catch(e => onToast(String(e)))
+							break
+						case 'openOtherPane':
+							if (menu?.path && menu.isDir) onOpenOtherPane(menu.path)
+							break
+						case 'addBookmark':
+							if (menu?.path && menu.isDir) {
+								onAddBookmark(menu.path, pathBasename(menu.path) || menu.path)
+							}
+							break
+						case 'copyPath':
+							if (menu?.path) {
+								void navigator.clipboard.writeText(menu.path).then(
+									() => onToast(t('pathCopied', locale)),
+									e => onToast(String(e)),
+								)
+							}
+							break
+						case 'copy':
+							onClipboard({mode: 'copy', paths: [...selected]})
+							break
+						case 'cut':
+							onClipboard({mode: 'cut', paths: [...selected]})
+							break
+						case 'paste':
+							void doPaste()
+							break
+						case 'newFolder':
+							void doNewFolder()
+							break
+						case 'newFile':
+							void doNewFile()
+							break
+						case 'rename':
+							startRename()
+							setMenu(null)
+							return
+						case 'delete':
+							void doDelete()
+							break
+						case 'properties':
+							if (entry) setPropsEntry(entry)
+							break
+						case 'customizeMenu':
+							onCustomizeMenu()
+							break
+						default:
+							break
+					}
+					setMenu(null)
 				}}
 			/>
 			{propsEntry && (
