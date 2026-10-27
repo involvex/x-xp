@@ -17,10 +17,14 @@ export type BuiltinMenuAction =
 	| 'delete'
 	| 'properties'
 	| 'tags'
+	| 'extractHere'
+	| 'extractTo'
+	| 'compressZip'
 	| 'customizeMenu'
 	| 'separator'
 
-export type MenuTarget = 'any' | 'item' | 'dir' | 'file' | 'empty'
+export type MenuTarget =
+	'any' | 'item' | 'dir' | 'file' | 'empty' | 'archive' | 'selection'
 
 export interface OpenWithApp {
 	id: string
@@ -114,6 +118,10 @@ export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
 	{id: 'copy', action: 'copy', enabled: true, when: 'item'},
 	{id: 'paste', action: 'paste', enabled: true, when: 'any'},
 	{id: 'sep3', action: 'separator', enabled: true, when: 'any'},
+	{id: 'extractHere', action: 'extractHere', enabled: true, when: 'archive'},
+	{id: 'extractTo', action: 'extractTo', enabled: true, when: 'archive'},
+	{id: 'compressZip', action: 'compressZip', enabled: true, when: 'selection'},
+	{id: 'sepArchive', action: 'separator', enabled: true, when: 'any'},
 	{id: 'newFolder', action: 'newFolder', enabled: true, when: 'any'},
 	{id: 'newFile', action: 'newFile', enabled: true, when: 'any'},
 	{id: 'rename', action: 'rename', enabled: true, when: 'item'},
@@ -133,9 +141,19 @@ export function defaultContextMenuSettings(): ContextMenuSettings {
 	}
 }
 
+export function isZipPath(path: string | null | undefined): boolean {
+	if (!path) return false
+	return /\.zip$/i.test(path)
+}
+
 export function matchesTarget(
 	when: MenuTarget,
-	ctx: {hasPath: boolean; isDir: boolean},
+	ctx: {
+		hasPath: boolean
+		isDir: boolean
+		isArchive: boolean
+		hasSelection: boolean
+	},
 ): boolean {
 	switch (when) {
 		case 'any':
@@ -148,6 +166,10 @@ export function matchesTarget(
 			return ctx.hasPath && !ctx.isDir
 		case 'empty':
 			return !ctx.hasPath
+		case 'archive':
+			return ctx.hasPath && !ctx.isDir && ctx.isArchive
+		case 'selection':
+			return ctx.hasSelection
 		default:
 			return true
 	}
@@ -189,9 +211,51 @@ export function actionLabelKey(action: BuiltinMenuAction): string | null {
 			return 'properties'
 		case 'tags':
 			return 'tags'
+		case 'extractHere':
+			return 'extractHere'
+		case 'extractTo':
+			return 'extractTo'
+		case 'compressZip':
+			return 'compressZip'
 		case 'customizeMenu':
 			return 'customizeMenu'
 		default:
 			return null
+	}
+}
+
+/** Merge persisted menu with new default rows so upgrades pick up actions. */
+export function mergeContextMenuSettings(
+	raw: ContextMenuSettings | null | undefined,
+): ContextMenuSettings {
+	const defaults = defaultContextMenuSettings()
+	if (!raw || raw.version !== 1 || !Array.isArray(raw.items)) {
+		return defaults
+	}
+	const byId = new Map(raw.items.map(i => [i.id, i]))
+	const items: ContextMenuItemConfig[] = []
+	for (const def of defaults.items) {
+		const existing = byId.get(def.id)
+		if (existing) {
+			items.push({
+				...def,
+				enabled: existing.enabled,
+				when: existing.when ?? def.when,
+			})
+			byId.delete(def.id)
+		} else {
+			items.push({...def})
+		}
+	}
+	for (const leftover of byId.values()) {
+		items.push(leftover)
+	}
+	return {
+		version: 1,
+		items,
+		openWith:
+			Array.isArray(raw.openWith) && raw.openWith.length > 0
+				? raw.openWith
+				: defaults.openWith,
 	}
 }

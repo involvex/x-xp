@@ -9,6 +9,7 @@ interface ToolbarProps {
 	dualPane: boolean
 	showPreview: boolean
 	showHidden: boolean
+	showFolderSizes: boolean
 	searchQuery: string
 	onBack: () => void
 	onForward: () => void
@@ -20,6 +21,7 @@ interface ToolbarProps {
 	onToggleDual: () => void
 	onTogglePreview: () => void
 	onToggleHidden: () => void
+	onToggleFolderSizes: () => void
 	onViewMode: (mode: ViewMode) => void
 	onSearch: (q: string) => void
 	onSettings: () => void
@@ -122,6 +124,14 @@ export function Toolbar(props: ToolbarProps) {
 				title={L('showHidden')}
 			>
 				{L('showHidden')}
+			</button>
+			<button
+				type="button"
+				className={`${btn} ${props.showFolderSizes ? 'ring-1 ring-[var(--xp-fg)]' : ''}`}
+				onClick={props.onToggleFolderSizes}
+				title={L('showFolderSizes')}
+			>
+				{L('showFolderSizes')}
 			</button>
 			<select
 				className="rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] px-2 py-1.5 text-sm"

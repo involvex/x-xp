@@ -1,6 +1,11 @@
 import {useState} from 'react'
 import {t, type Locale} from '../../lib/i18n'
-import {HOME_PATH, isHomePath} from '../../lib/paths'
+import {
+	HOME_PATH,
+	isHomePath,
+	isRecyclePath,
+	RECYCLE_PATH,
+} from '../../lib/paths'
 import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
 
 const BM_DND = 'application/x-xp-bookmark-index'
@@ -198,6 +203,7 @@ export function Sidebar({
 						type="button"
 						className={item(
 							!isHomePath(currentPath) &&
+								!isRecyclePath(currentPath) &&
 								currentPath.toLowerCase().startsWith(d.path.toLowerCase()),
 						)}
 						onClick={() => onNavigate(d.path)}
@@ -205,6 +211,13 @@ export function Sidebar({
 						{d.name}
 					</button>
 				))}
+				<button
+					type="button"
+					className={item(isRecyclePath(currentPath))}
+					onClick={() => onNavigate(RECYCLE_PATH)}
+				>
+					{L('recycleBin')}
+				</button>
 			</section>
 			<section>
 				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">

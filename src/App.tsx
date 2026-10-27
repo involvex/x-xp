@@ -18,7 +18,13 @@ import {
 	type ContextMenuSettings,
 } from './lib/contextMenuConfig'
 import {t, type Locale} from './lib/i18n'
-import {displayPathTitle, HOME_PATH, isHomePath} from './lib/paths'
+import {
+	displayPathTitle,
+	HOME_PATH,
+	isHomePath,
+	isRecyclePath,
+	isVirtualPath,
+} from './lib/paths'
 import {
 	applyQuickAccessPrefs,
 	defaultQuickAccessPrefs,
@@ -31,6 +37,7 @@ import {
 	loadQuickAccessPrefs,
 	loadRecentPaths,
 	loadSession,
+	loadShowFolderSizes,
 	loadShowHidden,
 	loadShowPreview,
 	loadTagDefs,
@@ -44,6 +51,7 @@ import {
 	saveLocale,
 	saveQuickAccessPrefs,
 	saveSession,
+	saveShowFolderSizes,
 	saveShowHidden,
 	saveShowPreview,
 	saveTagMap,
@@ -63,7 +71,7 @@ import type {
 } from './types/fs'
 
 async function resolveOpenPath(raw: string): Promise<string> {
-	if (!raw || isHomePath(raw)) return raw || HOME_PATH
+	if (!raw || isVirtualPath(raw)) return raw || HOME_PATH
 	try {
 		const entry = await api.resolvePath(raw)
 		return entry.isDir
@@ -118,6 +126,7 @@ export default function App() {
 	const [dualPane, setDualPane] = useState(false)
 	const [showPreview, setShowPreview] = useState(false)
 	const [showHidden, setShowHidden] = useState(false)
+	const [showFolderSizes, setShowFolderSizes] = useState(false)
 	const [searchQuery, setSearchQuery] = useState('')
 	const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
 	const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null)
@@ -148,7 +157,7 @@ export default function App() {
 
 	const recordNavigate = useCallback(async (next: string) => {
 		void saveLastPath(next)
-		if (!isHomePath(next)) {
+		if (!isVirtualPath(next)) {
 			const nextRecent = await pushRecentPath(next)
 			setRecent(nextRecent)
 		}
@@ -157,7 +166,9 @@ export default function App() {
 	const navigateTab = useCallback(
 		(next: string) => {
 			void (async () => {
-				const resolved = isHomePath(next) ? next : await resolveOpenPath(next)
+				const resolved = isVirtualPath(next)
+					? next
+					: await resolveOpenPath(next)
 				setTabs(prev =>
 					prev.map(t =>
 						t.id === activeTabId ? updateTabPath(t, resolved) : t,
@@ -172,7 +183,9 @@ export default function App() {
 	const navigateActive = useCallback(
 		(next: string) => {
 			void (async () => {
-				const resolved = isHomePath(next) ? next : await resolveOpenPath(next)
+				const resolved = isVirtualPath(next)
+					? next
+					: await resolveOpenPath(next)
 				if (activePane === 'right' && dualPane) {
 					setRightPath(resolved)
 					void recordNavigate(resolved)
@@ -222,6 +235,7 @@ export default function App() {
 					dual,
 					preview,
 					hidden,
+					folderSizesOn,
 					loc,
 					rec,
 					startup,
@@ -240,6 +254,7 @@ export default function App() {
 					loadDualPane(),
 					loadShowPreview(),
 					loadShowHidden(),
+					loadShowFolderSizes(),
 					loadLocale(),
 					loadRecentPaths(),
 					api.getStartupPath(),
@@ -259,6 +274,7 @@ export default function App() {
 				setDualPane(dual)
 				setShowPreview(preview)
 				setShowHidden(hidden)
+				setShowFolderSizes(folderSizesOn)
 				setLocale(loc)
 				setRecent(rec)
 				setTagDefs(tags)
@@ -268,7 +284,7 @@ export default function App() {
 				if (session) {
 					const restoredTabs: ExplorerTab[] = []
 					for (const tab of session.tabs) {
-						if (isHomePath(tab.path)) {
+						if (isVirtualPath(tab.path)) {
 							restoredTabs.push({
 								...tab,
 								title: displayPathTitle(tab.path),
@@ -279,7 +295,7 @@ export default function App() {
 							const resolved = await resolveOpenPath(tab.path)
 							const history = await Promise.all(
 								tab.history.map(async hp =>
-									isHomePath(hp) ? hp : resolveOpenPath(hp).catch(() => hp),
+									isVirtualPath(hp) ? hp : resolveOpenPath(hp).catch(() => hp),
 								),
 							)
 							const historyIndex = Math.min(
@@ -307,8 +323,8 @@ export default function App() {
 						setTabs(restoredTabs)
 						setActiveTabId(activeId)
 						setRightPath(
-							isHomePath(session.rightPath)
-								? HOME_PATH
+							isVirtualPath(session.rightPath)
+								? session.rightPath
 								: await resolveOpenPath(session.rightPath).catch(
 										() => HOME_PATH,
 									),
@@ -318,9 +334,9 @@ export default function App() {
 						setTagFilter(session.tagFilter)
 					} else {
 						const fallback =
-							(last && !isHomePath(last) ? last : null) || HOME_PATH
-						const initial = isHomePath(fallback)
-							? HOME_PATH
+							(last && !isVirtualPath(last) ? last : null) || HOME_PATH
+						const initial = isVirtualPath(fallback)
+							? fallback
 							: await resolveOpenPath(fallback)
 						const tab = newTab(initial)
 						setTabs([tab])
@@ -329,9 +345,9 @@ export default function App() {
 					}
 				} else {
 					const rawInitial =
-						(last && !isHomePath(last) ? last : null) || HOME_PATH
-					const initial = isHomePath(rawInitial)
-						? HOME_PATH
+						(last && !isVirtualPath(last) ? last : null) || HOME_PATH
+					const initial = isVirtualPath(rawInitial)
+						? rawInitial
 						: await resolveOpenPath(rawInitial)
 					const tab = newTab(initial)
 					setTabs([tab])
@@ -483,6 +499,14 @@ export default function App() {
 		})
 	}
 
+	const toggleFolderSizes = () => {
+		setShowFolderSizes(v => {
+			const next = !v
+			void saveShowFolderSizes(next)
+			return next
+		})
+	}
+
 	const changeView = (mode: ViewMode) => {
 		setViewMode(mode)
 		void saveViewMode(mode)
@@ -501,6 +525,10 @@ export default function App() {
 	const goUp = async () => {
 		const base = activePane === 'right' && dualPane ? rightPath : currentPath
 		if (isHomePath(base)) return
+		if (isRecyclePath(base)) {
+			navigateActive(HOME_PATH)
+			return
+		}
 		try {
 			const parent = await api.parentPath(base)
 			if (parent && parent !== base) navigateActive(parent)
@@ -511,7 +539,7 @@ export default function App() {
 	}
 
 	const addBookmarkAt = async (folderPath: string, label?: string) => {
-		if (isHomePath(folderPath)) return
+		if (isVirtualPath(folderPath)) return
 		const bm: Bookmark = {
 			id: crypto.randomUUID(),
 			label: label || displayPathTitle(folderPath),
@@ -609,7 +637,7 @@ export default function App() {
 		activePane === 'right' && dualPane ? rightPath : currentPath
 
 	const newFolderOnActive = async () => {
-		if (isHomePath(activeBasePath)) return
+		if (isVirtualPath(activeBasePath)) return
 		const name = window.prompt('Folder name', 'New folder')
 		if (!name) return
 		const base = activeBasePath
@@ -627,7 +655,7 @@ export default function App() {
 	}
 
 	const newFileOnActive = async () => {
-		if (isHomePath(activeBasePath)) return
+		if (isVirtualPath(activeBasePath)) return
 		const name = window.prompt('File name', 'New file.txt')
 		if (!name) return
 		const base = activeBasePath
@@ -710,6 +738,11 @@ export default function App() {
 			run: toggleHidden,
 		},
 		{
+			id: 'folder-sizes',
+			label: t('showFolderSizes', locale),
+			run: toggleFolderSizes,
+		},
+		{
 			id: 'view-details',
 			label: `${t('name', locale)} → Details`,
 			run: () => changeView('details'),
@@ -776,6 +809,7 @@ export default function App() {
 		viewMode,
 		clipboard,
 		showHidden,
+		showFolderSizes,
 		dualPane,
 		drives,
 		known,
@@ -827,6 +861,7 @@ export default function App() {
 				dualPane={dualPane}
 				showPreview={showPreview}
 				showHidden={showHidden}
+				showFolderSizes={showFolderSizes}
 				searchQuery={searchQuery}
 				onBack={() => goHistory(-1)}
 				onForward={() => goHistory(1)}
@@ -838,6 +873,7 @@ export default function App() {
 				onToggleDual={toggleDual}
 				onTogglePreview={togglePreview}
 				onToggleHidden={toggleHidden}
+				onToggleFolderSizes={toggleFolderSizes}
 				onViewMode={changeView}
 				onSearch={setSearchQuery}
 				onSettings={() => {

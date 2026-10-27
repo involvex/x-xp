@@ -104,3 +104,13 @@ export interface EntryProperties {
 	readonly: boolean
 	hidden: boolean
 }
+
+/** Windows Recycle Bin entry surfaced to the UI. */
+export interface RecycleItem {
+	id: string
+	name: string
+	originalPath: string
+	deletedDate: string
+	sizeDisplay: string
+	isDir: boolean
+}

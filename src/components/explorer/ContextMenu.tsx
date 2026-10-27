@@ -21,6 +21,8 @@ interface ContextMenuProps {
 	menu: ContextMenuState | null
 	canPaste: boolean
 	dualPane: boolean
+	hasSelection: boolean
+	isArchive: boolean
 	tagDefs: TagDef[]
 	activeTagIds: string[]
 	menuSettings: ContextMenuSettings
@@ -35,6 +37,8 @@ export function ContextMenu({
 	menu,
 	canPaste,
 	dualPane,
+	hasSelection,
+	isArchive,
 	tagDefs,
 	activeTagIds,
 	menuSettings,
@@ -51,8 +55,10 @@ export function ContextMenu({
 		() => ({
 			hasPath: !!menu?.path,
 			isDir: !!menu?.isDir,
+			isArchive,
+			hasSelection,
 		}),
-		[menu],
+		[menu, isArchive, hasSelection],
 	)
 
 	if (!menu) return null

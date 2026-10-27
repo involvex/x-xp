@@ -1,6 +1,11 @@
 import {useEffect, useState} from 'react'
 import {splitPath} from '../../lib/api'
-import {HOME_PATH, isHomePath} from '../../lib/paths'
+import {
+	HOME_PATH,
+	isHomePath,
+	isRecyclePath,
+	RECYCLE_PATH,
+} from '../../lib/paths'
 
 interface AddressBarProps {
 	path: string
@@ -43,7 +48,7 @@ export function AddressBar({path, onNavigate}: AddressBarProps) {
 		)
 	}
 
-	if (isHomePath(path)) {
+	if (isHomePath(path) || isRecyclePath(path)) {
 		return (
 			<div
 				className="flex flex-wrap items-center gap-1 border-b border-[var(--xp-border)] px-3 py-2 text-sm"
@@ -57,6 +62,18 @@ export function AddressBar({path, onNavigate}: AddressBarProps) {
 				>
 					Home
 				</button>
+				{isRecyclePath(path) && (
+					<>
+						<span className="opacity-40">›</span>
+						<button
+							type="button"
+							className="rounded px-1.5 py-0.5 hover:bg-[var(--xp-hover)]"
+							onClick={() => onNavigate(RECYCLE_PATH)}
+						>
+							Recycle Bin
+						</button>
+					</>
+				)}
 			</div>
 		)
 	}

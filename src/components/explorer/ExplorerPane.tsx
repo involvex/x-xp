@@ -1,11 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {api, pathBasename, pathJoin} from '../../lib/api'
-import type {
-	BuiltinMenuAction,
-	ContextMenuSettings,
+import {
+	isZipPath,
+	type BuiltinMenuAction,
+	type ContextMenuSettings,
 } from '../../lib/contextMenuConfig'
 import {t, type Locale} from '../../lib/i18n'
-import {isHomePath} from '../../lib/paths'
+import {isHomePath, isRecyclePath, isVirtualPath} from '../../lib/paths'
 import {sortEntries} from '../../lib/sort'
 import type {
 	Bookmark,
@@ -24,6 +25,7 @@ import {ContextMenu, type ContextMenuState} from './ContextMenu'
 import {DND_MIME, FileList} from './FileList'
 import {HomePage} from './HomePage'
 import {PropertiesModal} from './PropertiesModal'
+import {RecycleBinView} from './RecycleBinView'
 import {StatusBar} from './StatusBar'
 
 interface ExplorerPaneProps {
@@ -35,6 +37,7 @@ interface ExplorerPaneProps {
 	active: boolean
 	reloadToken: number
 	showHidden: boolean
+	showFolderSizes: boolean
 	dualPane: boolean
 	drives: FileEntry[]
 	known: KnownFolder[]
@@ -82,6 +85,7 @@ export function ExplorerPane({
 	active,
 	reloadToken,
 	showHidden,
+	showFolderSizes,
 	dualPane,
 	drives,
 	known,
@@ -117,7 +121,12 @@ export function ExplorerPane({
 	const [loading, setLoading] = useState(false)
 	const [dropTarget, setDropTarget] = useState<string | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
+	const [folderSizes, setFolderSizes] = useState<Record<string, number | null>>(
+		{},
+	)
 	const atHome = isHomePath(path)
+	const atRecycle = isRecyclePath(path)
+	const atVirtual = isVirtualPath(path)
 
 	const toggleSort = (key: SortKey) => {
 		onSortChange(
@@ -129,11 +138,12 @@ export function ExplorerPane({
 
 	const load = useCallback(
 		async (p: string) => {
-			if (isHomePath(p)) {
+			if (isVirtualPath(p)) {
 				setEntries([])
 				setSelected(new Set())
 				setSearchEntries(null)
 				setTruncated(false)
+				setFolderSizes({})
 				setLoading(false)
 				return
 			}
@@ -144,6 +154,7 @@ export function ExplorerPane({
 				setSelected(new Set())
 				setSearchEntries(null)
 				setTruncated(false)
+				setFolderSizes({})
 			} catch (e) {
 				onToast(String(e))
 			} finally {
@@ -158,7 +169,7 @@ export function ExplorerPane({
 	}, [path, load, reloadToken])
 
 	useEffect(() => {
-		if (atHome || !searchQuery.trim()) {
+		if (atVirtual || !searchQuery.trim()) {
 			setSearchEntries(null)
 			setTruncated(false)
 			return
@@ -173,7 +184,7 @@ export function ExplorerPane({
 				.catch(e => onToast(String(e)))
 		}, 250)
 		return () => window.clearTimeout(handle)
-	}, [searchQuery, path, onToast, atHome])
+	}, [searchQuery, path, onToast, atVirtual])
 
 	const visible = useMemo(() => {
 		const base = searchEntries ?? entries
@@ -190,6 +201,39 @@ export function ExplorerPane({
 		() => visible.filter(e => selected.has(e.path)),
 		[visible, selected],
 	)
+
+	useEffect(() => {
+		if (!showFolderSizes || atVirtual || viewMode !== 'details') {
+			return
+		}
+		const dirs = visible.filter(e => e.isDir).map(e => e.path)
+		if (dirs.length === 0) return
+		let cancelled = false
+		setFolderSizes(prev => {
+			const next = {...prev}
+			for (const p of dirs) {
+				if (!(p in next)) next[p] = null
+			}
+			return next
+		})
+		void (async () => {
+			for (const dirPath of dirs) {
+				if (cancelled) return
+				try {
+					const size = await api.getFolderSize(dirPath)
+					if (cancelled) return
+					setFolderSizes(prev => ({...prev, [dirPath]: size}))
+				} catch {
+					if (!cancelled) {
+						setFolderSizes(prev => ({...prev, [dirPath]: 0}))
+					}
+				}
+			}
+		})()
+		return () => {
+			cancelled = true
+		}
+	}, [showFolderSizes, path, viewMode, visible, atVirtual])
 
 	useEffect(() => {
 		if (!active) return
@@ -252,7 +296,7 @@ export function ExplorerPane({
 	}
 
 	const doPaste = async () => {
-		if (atHome || !clipboard || clipboard.paths.length === 0) return
+		if (atVirtual || !clipboard || clipboard.paths.length === 0) return
 		try {
 			if (clipboard.mode === 'copy') {
 				await api.copyEntries(clipboard.paths, path)
@@ -267,7 +311,7 @@ export function ExplorerPane({
 	}
 
 	const doNewFolder = async () => {
-		if (atHome) return
+		if (atVirtual) return
 		const name = window.prompt('Folder name', 'New folder')
 		if (!name) return
 		try {
@@ -278,8 +322,51 @@ export function ExplorerPane({
 		}
 	}
 
+	const doExtract = async (destPrompt: boolean) => {
+		const zip =
+			menu?.path && isZipPath(menu.path)
+				? menu.path
+				: selectedEntries.find(e => isZipPath(e.path))?.path
+		if (!zip) return
+		let dest: string | null = null
+		if (destPrompt) {
+			const suggested = path.replace(/[\\/]+$/, '')
+			const input = window.prompt('Extract to folder', suggested)
+			if (!input) return
+			dest = input
+		}
+		try {
+			const out = await api.extractArchive(zip, dest)
+			onToast(`${t('extracted', locale)}: ${out}`)
+			await load(path)
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
+	const doCompress = async () => {
+		if (atVirtual) return
+		const paths =
+			selected.size > 0 ? [...selected] : menu?.path ? [menu.path] : []
+		if (paths.length === 0) return
+		const baseName =
+			paths.length === 1
+				? pathBasename(paths[0]).replace(/\.zip$/i, '') || 'archive'
+				: 'archive'
+		const suggested = pathJoin(path, `${baseName}.zip`)
+		const dest = window.prompt('Zip file path', suggested)
+		if (!dest) return
+		try {
+			const out = await api.compressEntries(paths, dest)
+			onToast(`${t('compressed', locale)}: ${out}`)
+			await load(path)
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
 	const doNewFile = async () => {
-		if (atHome) return
+		if (atVirtual) return
 		const name = window.prompt('File name', 'New file.txt')
 		if (!name) return
 		try {
@@ -361,7 +448,7 @@ export function ExplorerPane({
 	}
 
 	const onDragOverPane = (e: React.DragEvent) => {
-		if (atHome) return
+		if (atVirtual) return
 		e.preventDefault()
 		e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move'
 		setDropTarget(path)
@@ -370,7 +457,7 @@ export function ExplorerPane({
 	const onDropOnPane = (e: React.DragEvent) => {
 		e.preventDefault()
 		setDropTarget(null)
-		if (atHome) return
+		if (atVirtual) return
 		const sources = parseDragPaths(e)
 		if (sources.length === 0) return
 		void transferTo(sources, path, e.ctrlKey || e.altKey)
@@ -386,27 +473,27 @@ export function ExplorerPane({
 				e.preventDefault()
 				void load(path)
 			}
-			if (e.key === 'Delete' && !atHome) {
+			if (e.key === 'Delete' && !atVirtual) {
 				e.preventDefault()
 				void doDelete()
 			}
-			if (e.key === 'F2' && !atHome) {
+			if (e.key === 'F2' && !atVirtual) {
 				e.preventDefault()
 				startRename()
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'a' && !atHome) {
+			if (e.ctrlKey && e.key.toLowerCase() === 'a' && !atVirtual) {
 				e.preventDefault()
 				setSelected(new Set(visible.map(x => x.path)))
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'c' && !atHome) {
+			if (e.ctrlKey && e.key.toLowerCase() === 'c' && !atVirtual) {
 				e.preventDefault()
 				onClipboard({mode: 'copy', paths: [...selected]})
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'x' && !atHome) {
+			if (e.ctrlKey && e.key.toLowerCase() === 'x' && !atVirtual) {
 				e.preventDefault()
 				onClipboard({mode: 'cut', paths: [...selected]})
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'v' && !atHome) {
+			if (e.ctrlKey && e.key.toLowerCase() === 'v' && !atVirtual) {
 				e.preventDefault()
 				void doPaste()
 			}
@@ -428,7 +515,7 @@ export function ExplorerPane({
 			className={`flex min-w-0 flex-1 flex-col ${active ? '' : 'opacity-80'} ${dropTarget === path ? 'ring-1 ring-inset ring-[var(--xp-fg)]' : ''}`}
 			onClick={onFocus}
 			onContextMenu={e => {
-				if (atHome) return
+				if (atVirtual) return
 				if ((e.target as HTMLElement).closest('li,button')) return
 				e.preventDefault()
 				setMenu({x: e.clientX, y: e.clientY, path: null, isDir: false})
@@ -449,6 +536,12 @@ export function ExplorerPane({
 					bookmarks={bookmarks}
 					recent={recent}
 					onNavigate={navigate}
+				/>
+			) : atRecycle ? (
+				<RecycleBinView
+					locale={locale}
+					reloadToken={reloadToken}
+					onToast={onToast}
 				/>
 			) : viewMode === 'columns' ? (
 				<ColumnsView
@@ -486,6 +579,8 @@ export function ExplorerPane({
 					dropTarget={dropTarget}
 					tagDefs={tagDefs}
 					tagMap={tagMap}
+					folderSizes={folderSizes}
+					showFolderSizes={showFolderSizes}
 					onSort={toggleSort}
 					onRenameValue={setRenameValue}
 					onCommitRename={() => void commitRename()}
@@ -512,17 +607,19 @@ export function ExplorerPane({
 			)}
 			<StatusBar
 				locale={locale}
-				itemCount={atHome ? 0 : visible.length}
+				itemCount={atVirtual ? 0 : visible.length}
 				selectedCount={selected.size}
 				path={path}
-				searchActive={!!searchQuery.trim() && !atHome}
+				searchActive={!!searchQuery.trim() && !atVirtual}
 				truncated={truncated}
 			/>
 			<ContextMenu
 				locale={locale}
 				menu={menu}
-				canPaste={!!clipboard && clipboard.paths.length > 0 && !atHome}
+				canPaste={!!clipboard && clipboard.paths.length > 0 && !atVirtual}
 				dualPane={dualPane}
+				hasSelection={selected.size > 0 || (!!menu?.path && !atVirtual)}
+				isArchive={isZipPath(menu?.path ?? null)}
 				tagDefs={tagDefs}
 				activeTagIds={menu?.path ? (tagMap[menu.path] ?? []) : []}
 				menuSettings={menuSettings}
@@ -601,6 +698,15 @@ export function ExplorerPane({
 							break
 						case 'properties':
 							if (entry) setPropsEntry(entry)
+							break
+						case 'extractHere':
+							void doExtract(false)
+							break
+						case 'extractTo':
+							void doExtract(true)
+							break
+						case 'compressZip':
+							void doCompress()
 							break
 						case 'customizeMenu':
 							onCustomizeMenu()

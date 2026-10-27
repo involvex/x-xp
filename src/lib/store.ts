@@ -13,7 +13,7 @@ import type {
 	ViewMode,
 } from '../types/fs'
 import {
-	defaultContextMenuSettings,
+	mergeContextMenuSettings,
 	type ContextMenuSettings,
 } from './contextMenuConfig'
 import type {Locale} from './i18n'
@@ -83,6 +83,15 @@ export async function loadShowHidden(): Promise<boolean> {
 
 export async function saveShowHidden(value: boolean): Promise<void> {
 	await store.set('showHidden', value)
+	await store.save()
+}
+
+export async function loadShowFolderSizes(): Promise<boolean> {
+	return (await store.get<boolean>('showFolderSizes')) ?? false
+}
+
+export async function saveShowFolderSizes(value: boolean): Promise<void> {
+	await store.set('showFolderSizes', value)
 	await store.save()
 }
 
@@ -198,18 +207,7 @@ export async function saveSession(session: SessionSnapshot): Promise<void> {
 
 export async function loadContextMenuSettings(): Promise<ContextMenuSettings> {
 	const raw = await store.get<ContextMenuSettings>('contextMenu')
-	if (!raw || raw.version !== 1 || !Array.isArray(raw.items)) {
-		return defaultContextMenuSettings()
-	}
-	const defaults = defaultContextMenuSettings()
-	return {
-		version: 1,
-		items: raw.items.length > 0 ? raw.items : defaults.items,
-		openWith:
-			Array.isArray(raw.openWith) && raw.openWith.length > 0
-				? raw.openWith
-				: defaults.openWith,
-	}
+	return mergeContextMenuSettings(raw)
 }
 
 export async function saveContextMenuSettings(

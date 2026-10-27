@@ -439,3 +439,25 @@ pub async fn format_modified(ts: Option<i64>) -> Result<String, String> {
 		.ok_or_else(|| "Invalid timestamp".to_string())?;
 	Ok(dt.format("%Y-%m-%d %H:%M").to_string())
 }
+
+/// Recursively sum file sizes under a folder (or return file length).
+#[tauri::command]
+pub async fn get_folder_size(path: String) -> Result<u64, String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		let p = PathBuf::from(&path);
+		if !p.exists() {
+			return Err(format!("Path does not exist: {path}"));
+		}
+		let metadata = fs::metadata(&p).map_err(|e| e.to_string())?;
+		if metadata.is_file() {
+			return Ok(metadata.len());
+		}
+		if !metadata.is_dir() {
+			return Err(format!("Not a directory: {path}"));
+		}
+		let (size, _, _) = folder_aggregate(&p);
+		Ok(size)
+	})
+	.await
+	.map_err(|e| e.to_string())?
+}

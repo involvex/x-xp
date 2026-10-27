@@ -1,14 +1,16 @@
 mod commands;
 
+use commands::archive::{compress_entries, extract_archive};
 use commands::fs::{
 	copy_entries, create_dir, create_file, delete_entries, format_modified, get_drives,
-	get_entry_properties, move_entries, open_in_new_window, open_path, open_with, read_dir,
-	read_text_preview, rename_entry,
+	get_entry_properties, get_folder_size, move_entries, open_in_new_window, open_path, open_with,
+	read_dir, read_text_preview, rename_entry,
 };
 use commands::path::{
 	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path,
 	parse_startup_path_with_cwd, resolve_path, set_startup_path, StartupState,
 };
+use commands::recycle::{delete_recycle_item, list_recycle_bin, restore_recycle_item};
 use commands::registry::{
 	backup_folder_handlers, create_system_restore_point, get_registry_status,
 	restore_folder_handlers, set_as_default_folder_handler,
@@ -67,6 +69,12 @@ pub fn run() {
 			open_with,
 			open_in_new_window,
 			get_entry_properties,
+			get_folder_size,
+			extract_archive,
+			compress_entries,
+			list_recycle_bin,
+			restore_recycle_item,
+			delete_recycle_item,
 			read_text_preview,
 			format_modified,
 			get_home,

@@ -3,6 +3,7 @@ import type {
 	EntryProperties,
 	FileEntry,
 	KnownFolder,
+	RecycleItem,
 	RegistryBackupStatus,
 	SearchResult,
 } from '../types/fs'
@@ -25,6 +26,15 @@ export const api = {
 	openInNewWindow: (path: string) => invoke<void>('open_in_new_window', {path}),
 	getEntryProperties: (path: string) =>
 		invoke<EntryProperties>('get_entry_properties', {path}),
+	getFolderSize: (path: string) => invoke<number>('get_folder_size', {path}),
+	extractArchive: (path: string, dest?: string | null) =>
+		invoke<string>('extract_archive', {path, dest: dest ?? null}),
+	compressEntries: (paths: string[], destZip: string) =>
+		invoke<string>('compress_entries', {paths, destZip}),
+	listRecycleBin: () => invoke<RecycleItem[]>('list_recycle_bin'),
+	restoreRecycleItem: (id: string) =>
+		invoke<void>('restore_recycle_item', {id}),
+	deleteRecycleItem: (id: string) => invoke<void>('delete_recycle_item', {id}),
 	readTextPreview: (path: string, maxBytes?: number) =>
 		invoke<string>('read_text_preview', {path, maxBytes}),
 	getHome: () => invoke<string>('get_home'),

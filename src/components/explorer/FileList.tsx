@@ -23,6 +23,9 @@ interface FileListProps {
 	dropTarget: string | null
 	tagDefs: TagDef[]
 	tagMap: TagMap
+	/** path → folder byte size when showFolderSizes is on */
+	folderSizes?: Record<string, number | null>
+	showFolderSizes?: boolean
 	onSort: (key: SortKey) => void
 	onRenameValue: (v: string) => void
 	onCommitRename: () => void
@@ -85,6 +88,8 @@ export function FileList({
 	dropTarget,
 	tagDefs,
 	tagMap,
+	folderSizes = {},
+	showFolderSizes = false,
 	onSort,
 	onRenameValue,
 	onCommitRename,
@@ -100,6 +105,15 @@ export function FileList({
 	onDropOnPane,
 }: FileListProps) {
 	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
+
+	const sizeLabel = (entry: FileEntry): string => {
+		if (!entry.isDir) return formatSize(entry.size)
+		if (!showFolderSizes) return ''
+		const v = folderSizes[entry.path]
+		if (v === undefined) return '…'
+		if (v === null) return '…'
+		return formatSize(v)
+	}
 
 	if (entries.length === 0) {
 		return (
@@ -243,7 +257,7 @@ export function FileList({
 							{viewMode === 'details' && (
 								<>
 									<span className="text-right text-xs opacity-60">
-										{entry.isDir ? '' : formatSize(entry.size)}
+										{sizeLabel(entry)}
 									</span>
 									<span className="text-xs opacity-60">
 										{formatDate(entry.modified)}
