@@ -17,7 +17,23 @@ import {
 	type ContextMenuSettings,
 } from './contextMenuConfig'
 import type {Locale} from './i18n'
-import {HOME_PATH, isHomePath} from './paths'
+import {HOME_PATH, isVirtualPath} from './paths'
+
+export const DEFAULT_GLOBAL_HOTKEY = 'Ctrl+Alt+E'
+
+export interface DesktopPrefs {
+	globalHotkey: string
+	closeToTray: boolean
+	startMinimized: boolean
+}
+
+export function defaultDesktopPrefs(): DesktopPrefs {
+	return {
+		globalHotkey: DEFAULT_GLOBAL_HOTKEY,
+		closeToTray: true,
+		startMinimized: false,
+	}
+}
 
 const store = new LazyStore('settings.json')
 const RECENT_CAP = 20
@@ -110,7 +126,7 @@ export async function loadRecentPaths(): Promise<string[]> {
 }
 
 export async function pushRecentPath(path: string): Promise<string[]> {
-	if (!path || isHomePath(path)) {
+	if (!path || isVirtualPath(path)) {
 		return loadRecentPaths()
 	}
 	const prev = await loadRecentPaths()
@@ -118,6 +134,31 @@ export async function pushRecentPath(path: string): Promise<string[]> {
 	await store.set('recentPaths', next)
 	await store.save()
 	return next
+}
+
+export async function loadDesktopPrefs(): Promise<DesktopPrefs> {
+	const raw = await store.get<Partial<DesktopPrefs>>('desktop')
+	const defaults = defaultDesktopPrefs()
+	if (!raw || typeof raw !== 'object') return defaults
+	return {
+		globalHotkey:
+			typeof raw.globalHotkey === 'string'
+				? raw.globalHotkey
+				: defaults.globalHotkey,
+		closeToTray:
+			typeof raw.closeToTray === 'boolean'
+				? raw.closeToTray
+				: defaults.closeToTray,
+		startMinimized:
+			typeof raw.startMinimized === 'boolean'
+				? raw.startMinimized
+				: defaults.startMinimized,
+	}
+}
+
+export async function saveDesktopPrefs(prefs: DesktopPrefs): Promise<void> {
+	await store.set('desktop', prefs)
+	await store.save()
 }
 
 export async function loadTagDefs(): Promise<TagDef[]> {

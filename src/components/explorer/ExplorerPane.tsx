@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {api, pathBasename, pathJoin} from '../../lib/api'
 import {
 	isZipPath,
@@ -19,7 +19,7 @@ import type {
 	TagMap,
 	ViewMode,
 } from '../../types/fs'
-import {AddressBar} from './AddressBar'
+import {AddressBar, type AddressBarHandle} from './AddressBar'
 import {ColumnsView} from './ColumnsView'
 import {ContextMenu, type ContextMenuState} from './ContextMenu'
 import {DND_MIME, FileList} from './FileList'
@@ -61,6 +61,8 @@ interface ExplorerPaneProps {
 	onGoUp: () => void
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
+	/** Increment while active to focus the address bar (Ctrl+L). */
+	focusAddressNonce?: number
 }
 
 function parseDragPaths(e: React.DragEvent): string[] {
@@ -109,7 +111,9 @@ export function ExplorerPane({
 	onGoUp,
 	onToggleTag,
 	onDropComplete,
+	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
+	const addressRef = useRef<AddressBarHandle>(null)
 	const [entries, setEntries] = useState<FileEntry[]>([])
 	const [selected, setSelected] = useState<Set<string>>(new Set())
 	const [anchor, setAnchor] = useState<string | null>(null)
@@ -167,6 +171,11 @@ export function ExplorerPane({
 	useEffect(() => {
 		void load(path)
 	}, [path, load, reloadToken])
+
+	useEffect(() => {
+		if (!active || !focusAddressNonce) return
+		addressRef.current?.focusEdit()
+	}, [focusAddressNonce, active])
 
 	useEffect(() => {
 		if (atVirtual || !searchQuery.trim()) {
@@ -524,6 +533,7 @@ export function ExplorerPane({
 			onDrop={onDropOnPane}
 		>
 			<AddressBar
+				ref={addressRef}
 				path={path}
 				onNavigate={navigate}
 			/>

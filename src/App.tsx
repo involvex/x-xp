@@ -17,6 +17,7 @@ import {
 	defaultContextMenuSettings,
 	type ContextMenuSettings,
 } from './lib/contextMenuConfig'
+import {applyGlobalHotkey} from './lib/hotkey'
 import {t, type Locale} from './lib/i18n'
 import {
 	displayPathTitle,
@@ -27,10 +28,12 @@ import {
 } from './lib/paths'
 import {
 	applyQuickAccessPrefs,
+	defaultDesktopPrefs,
 	defaultQuickAccessPrefs,
 	defaultSort,
 	loadBookmarks,
 	loadContextMenuSettings,
+	loadDesktopPrefs,
 	loadDualPane,
 	loadLastPath,
 	loadLocale,
@@ -46,6 +49,7 @@ import {
 	pushRecentPath,
 	saveBookmarks,
 	saveContextMenuSettings,
+	saveDesktopPrefs,
 	saveDualPane,
 	saveLastPath,
 	saveLocale,
@@ -56,6 +60,7 @@ import {
 	saveShowPreview,
 	saveTagMap,
 	saveViewMode,
+	type DesktopPrefs,
 } from './lib/store'
 import type {
 	Bookmark,
@@ -69,6 +74,11 @@ import type {
 	TagMap,
 	ViewMode,
 } from './types/fs'
+
+function isTypingTarget(el: EventTarget | null): boolean {
+	const tag = (el as HTMLElement | null)?.tagName
+	return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
 
 async function resolveOpenPath(raw: string): Promise<string> {
 	if (!raw || isVirtualPath(raw)) return raw || HOME_PATH
@@ -131,11 +141,17 @@ export default function App() {
 	const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
 	const [previewEntry, setPreviewEntry] = useState<FileEntry | null>(null)
 	const [settingsOpen, setSettingsOpen] = useState(false)
-	const [settingsTab, setSettingsTab] = useState<'general' | 'menu'>('general')
+	const [settingsTab, setSettingsTab] = useState<
+		'general' | 'desktop' | 'menu'
+	>('general')
+	const [desktopPrefs, setDesktopPrefs] =
+		useState<DesktopPrefs>(defaultDesktopPrefs)
 	const [toast, setToast] = useState<string | null>(null)
 	const [ready, setReady] = useState(false)
 	const [reloadToken, setReloadToken] = useState(0)
 	const [paletteOpen, setPaletteOpen] = useState(false)
+	const [focusSearchNonce, setFocusSearchNonce] = useState(0)
+	const [focusAddressNonce, setFocusAddressNonce] = useState(0)
 	const [tagDefs, setTagDefs] = useState<TagDef[]>([])
 	const [tagMap, setTagMap] = useState<TagMap>({})
 	const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -160,6 +176,7 @@ export default function App() {
 		if (!isVirtualPath(next)) {
 			const nextRecent = await pushRecentPath(next)
 			setRecent(nextRecent)
+			void api.syncTrayRecents(nextRecent).catch(() => undefined)
 		}
 	}, [])
 
@@ -244,6 +261,7 @@ export default function App() {
 					session,
 					menuCfg,
 					qa,
+					desk,
 				] = await Promise.all([
 					api.getHome(),
 					api.getDrives(),
@@ -263,6 +281,7 @@ export default function App() {
 					loadSession(),
 					loadContextMenuSettings(),
 					loadQuickAccessPrefs(),
+					loadDesktopPrefs(),
 				])
 				if (cancelled) return
 				setHome(h)
@@ -280,6 +299,20 @@ export default function App() {
 				setTagDefs(tags)
 				setTagMap(tmap)
 				setMenuSettings(menuCfg)
+				setDesktopPrefs(desk)
+				await api.setCloseToTray(desk.closeToTray).catch(() => undefined)
+				await api.setStartMinimized(desk.startMinimized).catch(() => undefined)
+				await api.syncTrayRecents(rec).catch(() => undefined)
+				try {
+					await applyGlobalHotkey(desk.globalHotkey)
+				} catch {
+					/* conflict — user can change in Settings */
+				}
+				if (desk.startMinimized) {
+					await getCurrentWindow()
+						.hide()
+						.catch(() => undefined)
+				}
 
 				if (session) {
 					const restoredTabs: ExplorerTab[] = []
@@ -431,33 +464,50 @@ export default function App() {
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
-			if (e.ctrlKey && e.key.toLowerCase() === 'k') {
+			const typing = isTypingTarget(e.target)
+			if (e.ctrlKey && e.key.toLowerCase() === 'k' && !typing) {
 				e.preventDefault()
 				setPaletteOpen(true)
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 't') {
+			if (e.ctrlKey && e.key.toLowerCase() === 't' && !typing) {
 				e.preventDefault()
 				const tab = newTab(HOME_PATH)
 				setTabs(prev => [...prev, tab])
 				setActiveTabId(tab.id)
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'w') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'w' && !typing) {
 				e.preventDefault()
 				closeTab(activeTabId)
 			}
-			if (e.key === 'F3') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'f' && !typing) {
+				e.preventDefault()
+				setFocusSearchNonce(n => n + 1)
+			}
+			if (
+				((e.ctrlKey && e.key.toLowerCase() === 'l') ||
+					(e.altKey && e.key.toLowerCase() === 'd')) &&
+				!typing
+			) {
+				e.preventDefault()
+				setFocusAddressNonce(n => n + 1)
+			}
+			if (e.altKey && e.key === 'Home' && !typing) {
+				e.preventDefault()
+				navigateActive(HOME_PATH)
+			}
+			if (e.key === 'F3' && !typing) {
 				e.preventDefault()
 				toggleDual()
 			}
-			if (e.key === 'F4') {
+			if (e.key === 'F4' && !typing) {
 				e.preventDefault()
 				togglePreview()
 			}
-			if (e.altKey && e.key === 'ArrowLeft') {
+			if (e.altKey && e.key === 'ArrowLeft' && !typing) {
 				e.preventDefault()
 				if (canBack) goHistory(-1)
 			}
-			if (e.altKey && e.key === 'ArrowRight') {
+			if (e.altKey && e.key === 'ArrowRight' && !typing) {
 				e.preventDefault()
 				if (canForward) goHistory(1)
 			}
@@ -520,6 +570,23 @@ export default function App() {
 	const changeMenuSettings = (s: ContextMenuSettings) => {
 		setMenuSettings(s)
 		void saveContextMenuSettings(s)
+	}
+
+	const changeDesktopPrefs = (prefs: DesktopPrefs) => {
+		const prev = desktopPrefs
+		setDesktopPrefs(prefs)
+		void saveDesktopPrefs(prefs)
+		void api.setCloseToTray(prefs.closeToTray).catch(() => undefined)
+		void api.setStartMinimized(prefs.startMinimized).catch(() => undefined)
+		if (prefs.globalHotkey !== prev.globalHotkey) {
+			void applyGlobalHotkey(prefs.globalHotkey)
+				.then(() => {
+					if (prefs.globalHotkey) {
+						setToast(t('hotkeyRegistered', locale))
+					}
+				})
+				.catch(() => setToast(t('hotkeyFailed', locale)))
+		}
 	}
 
 	const goUp = async () => {
@@ -863,6 +930,7 @@ export default function App() {
 				showHidden={showHidden}
 				showFolderSizes={showFolderSizes}
 				searchQuery={searchQuery}
+				focusSearchNonce={focusSearchNonce}
 				onBack={() => goHistory(-1)}
 				onForward={() => goHistory(1)}
 				onUp={() => void goUp()}
@@ -913,6 +981,9 @@ export default function App() {
 						path={currentPath}
 						searchQuery={activePane === 'left' || !dualPane ? searchQuery : ''}
 						active={activePane === 'left' || !dualPane}
+						focusAddressNonce={
+							activePane === 'left' || !dualPane ? focusAddressNonce : 0
+						}
 						onPathChange={navigateTab}
 						onFocus={() => setActivePane('left')}
 						onOpenOtherPane={openInOtherPane}
@@ -925,6 +996,9 @@ export default function App() {
 								path={rightPath || home || HOME_PATH}
 								searchQuery={activePane === 'right' ? searchQuery : ''}
 								active={activePane === 'right'}
+								focusAddressNonce={
+									activePane === 'right' ? focusAddressNonce : 0
+								}
 								onPathChange={p => {
 									setRightPath(p)
 									void recordNavigate(p)
@@ -948,6 +1022,8 @@ export default function App() {
 					onLocale={changeLocale}
 					menuSettings={menuSettings}
 					onMenuSettings={changeMenuSettings}
+					desktopPrefs={desktopPrefs}
+					onDesktopPrefs={changeDesktopPrefs}
 					onRestoreQuickAccess={() => void restoreQuickAccess()}
 					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}

@@ -35,6 +35,13 @@ export const api = {
 	restoreRecycleItem: (id: string) =>
 		invoke<void>('restore_recycle_item', {id}),
 	deleteRecycleItem: (id: string) => invoke<void>('delete_recycle_item', {id}),
+	setCloseToTray: (enabled: boolean) =>
+		invoke<void>('set_close_to_tray', {enabled}),
+	setStartMinimized: (enabled: boolean) =>
+		invoke<void>('set_start_minimized', {enabled}),
+	syncTrayRecents: (paths: string[]) =>
+		invoke<void>('sync_tray_recents', {paths}),
+	toggleMainWindow: () => invoke<void>('toggle_main_window_cmd'),
 	readTextPreview: (path: string, maxBytes?: number) =>
 		invoke<string>('read_text_preview', {path, maxBytes}),
 	getHome: () => invoke<string>('get_home'),

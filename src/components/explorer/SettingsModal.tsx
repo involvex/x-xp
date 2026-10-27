@@ -7,16 +7,22 @@ import {
 	type ContextMenuSettings,
 	type OpenWithApp,
 } from '../../lib/contextMenuConfig'
+import {eventToAccelerator} from '../../lib/hotkey'
 import {t, type Locale, type MessageKey} from '../../lib/i18n'
+import type {DesktopPrefs} from '../../lib/store'
 import type {RegistryBackupStatus} from '../../types/fs'
+
+type SettingsTab = 'general' | 'desktop' | 'menu'
 
 interface SettingsModalProps {
 	locale: Locale
 	onLocale: (l: Locale) => void
 	menuSettings: ContextMenuSettings
 	onMenuSettings: (s: ContextMenuSettings) => void
+	desktopPrefs: DesktopPrefs
+	onDesktopPrefs: (p: DesktopPrefs) => void
 	onRestoreQuickAccess: () => void
-	initialTab?: 'general' | 'menu'
+	initialTab?: SettingsTab
 	onClose: () => void
 	onToast: (msg: string) => void
 }
@@ -26,6 +32,8 @@ export function SettingsModal({
 	onLocale,
 	menuSettings,
 	onMenuSettings,
+	desktopPrefs,
+	onDesktopPrefs,
 	onRestoreQuickAccess,
 	initialTab = 'general',
 	onClose,
@@ -33,8 +41,13 @@ export function SettingsModal({
 }: SettingsModalProps) {
 	const [status, setStatus] = useState<RegistryBackupStatus | null>(null)
 	const [busy, setBusy] = useState(false)
-	const [tab, setTab] = useState<'general' | 'menu'>(initialTab)
+	const [tab, setTab] = useState<SettingsTab>(initialTab)
+	const [hotkeyDraft, setHotkeyDraft] = useState(desktopPrefs.globalHotkey)
 	const L = (key: MessageKey) => t(key, locale)
+
+	useEffect(() => {
+		setHotkeyDraft(desktopPrefs.globalHotkey)
+	}, [desktopPrefs.globalHotkey])
 
 	const refresh = async () => {
 		try {
@@ -148,6 +161,13 @@ export function SettingsModal({
 					</button>
 					<button
 						type="button"
+						className={`px-3 py-2 text-sm ${tab === 'desktop' ? 'border-b-2 border-[var(--xp-fg)]' : 'opacity-50'}`}
+						onClick={() => setTab('desktop')}
+					>
+						{L('desktop')}
+					</button>
+					<button
+						type="button"
 						className={`px-3 py-2 text-sm ${tab === 'menu' ? 'border-b-2 border-[var(--xp-fg)]' : 'opacity-50'}`}
 						onClick={() => setTab('menu')}
 					>
@@ -229,6 +249,93 @@ export function SettingsModal({
 								</button>
 							</section>
 						</>
+					)}
+
+					{tab === 'desktop' && (
+						<div className="space-y-6">
+							<section className="space-y-2">
+								<h3 className="text-sm font-semibold">{L('globalHotkey')}</h3>
+								<p className="text-xs opacity-70">{L('globalHotkeyHint')}</p>
+								<input
+									className="w-full rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--xp-fg)]"
+									value={hotkeyDraft}
+									readOnly
+									placeholder="Ctrl+Alt+E"
+									onKeyDown={e => {
+										e.preventDefault()
+										e.stopPropagation()
+										const accel = eventToAccelerator(e)
+										if (!accel) return
+										setHotkeyDraft(accel)
+										onDesktopPrefs({
+											...desktopPrefs,
+											globalHotkey: accel,
+										})
+									}}
+								/>
+								<div className="flex gap-2">
+									<button
+										type="button"
+										className={btn}
+										onClick={() => {
+											setHotkeyDraft('')
+											onDesktopPrefs({
+												...desktopPrefs,
+												globalHotkey: '',
+											})
+										}}
+									>
+										{L('clearHotkey')}
+									</button>
+								</div>
+							</section>
+							<section className="space-y-3">
+								<label className="flex items-start gap-2 text-sm">
+									<input
+										type="checkbox"
+										className="mt-1"
+										checked={desktopPrefs.closeToTray}
+										onChange={e =>
+											onDesktopPrefs({
+												...desktopPrefs,
+												closeToTray: e.target.checked,
+											})
+										}
+									/>
+									<span>
+										<span className="font-medium">{L('closeToTray')}</span>
+										<span className="mt-0.5 block text-xs opacity-60">
+											{L('closeToTrayHint')}
+										</span>
+									</span>
+								</label>
+								<label className="flex items-start gap-2 text-sm">
+									<input
+										type="checkbox"
+										className="mt-1"
+										checked={desktopPrefs.startMinimized}
+										onChange={e =>
+											onDesktopPrefs({
+												...desktopPrefs,
+												startMinimized: e.target.checked,
+											})
+										}
+									/>
+									<span className="font-medium">{L('startMinimized')}</span>
+								</label>
+							</section>
+							<section className="space-y-2">
+								<h3 className="text-sm font-semibold">
+									{L('shortcutCheatsheet')}
+								</h3>
+								<p className="rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-3 py-2 text-xs leading-relaxed opacity-80">
+									{L('shortcutList')}
+									{desktopPrefs.globalHotkey
+										? ` · ${desktopPrefs.globalHotkey} summon`
+										: ''}
+								</p>
+							</section>
+						</div>
 					)}
 
 					{tab === 'menu' && (

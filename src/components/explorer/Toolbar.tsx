@@ -1,3 +1,4 @@
+import {useEffect, useRef} from 'react'
 import {t, type Locale} from '../../lib/i18n'
 import type {ViewMode} from '../../types/fs'
 
@@ -11,6 +12,8 @@ interface ToolbarProps {
 	showHidden: boolean
 	showFolderSizes: boolean
 	searchQuery: string
+	/** Increment to focus the search field (Ctrl+F). */
+	focusSearchNonce?: number
 	onBack: () => void
 	onForward: () => void
 	onUp: () => void
@@ -33,8 +36,15 @@ interface ToolbarProps {
 
 export function Toolbar(props: ToolbarProps) {
 	const L = (key: Parameters<typeof t>[0]) => t(key, props.locale)
+	const searchRef = useRef<HTMLInputElement>(null)
 	const btn =
 		'rounded px-2.5 py-1.5 text-sm bg-[var(--xp-hover)] hover:bg-[var(--xp-select)] disabled:opacity-30 disabled:cursor-not-allowed'
+
+	useEffect(() => {
+		if (!props.focusSearchNonce) return
+		searchRef.current?.focus()
+		searchRef.current?.select()
+	}, [props.focusSearchNonce])
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-[var(--xp-border)] px-3 py-2">
@@ -152,6 +162,7 @@ export function Toolbar(props: ToolbarProps) {
 				⌘
 			</button>
 			<input
+				ref={searchRef}
 				type="search"
 				placeholder={L('search')}
 				value={props.searchQuery}
