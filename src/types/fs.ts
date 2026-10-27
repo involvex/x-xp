@@ -27,7 +27,18 @@ export interface RegistryBackupStatus {
 	message: string
 }
 
-export type ViewMode = 'details' | 'list' | 'icons'
+export type ViewMode = 'details' | 'list' | 'icons' | 'columns'
+
+export interface TagDef {
+	id: string
+	name: string
+	color: string
+}
+
+export interface TagMap {
+	/** path → tag ids */
+	[path: string]: string[]
+}
 
 export type SortKey = 'name' | 'size' | 'modified'
 

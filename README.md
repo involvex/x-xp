@@ -7,7 +7,7 @@ Use it as a modern Explorer alternative with CLI opening, tabs, dual-pane, previ
 
 **Core:** Home page (quick access / drives / bookmarks / recent), navigate, breadcrumbs, history, multi-select, copy/cut/paste, rename, delete (Recycle Bin), new folder/file, drag-and-drop move/copy, keyboard shortcuts, list/details/icons views, SVG file icons, sidebar (Home + drives + known folders).
 
-**Plus:** tabs, dual-pane (F3), text + image preview (F4), show-hidden toggle, properties dialog, richer context menu, bookmarks, recursive name search, `x-xp <path>` CLI, single-instance focus.
+**Plus:** tabs, dual-pane (F3), text + image preview (F4), show-hidden toggle, properties dialog, richer context menu, bookmarks, color tags, columns layout, command palette (Ctrl+K), recursive name search, `x-xp <path>` CLI (`bun link`), single-instance focus.
 
 **Install / defaults (Windows):** MSI can register x-xp as the classic Directory/Folder/Drive open handler, create a System Restore point (`Before x-xp default explorer`), and backup prior registry values under `HKLM\Software\Involvex\x-xp\Backup`. In-app **Settings** can set/restore user-level handlers.
 
@@ -19,6 +19,16 @@ Use it as a modern Explorer alternative with CLI opening, tabs, dual-pane, previ
 bun install
 bun run tauri:dev
 ```
+
+## CLI (`bun link`)
+
+```bash
+bun link
+x-xp .
+x-xp "C:\Users\Public"
+```
+
+Link exposes the `x-xp` bin (resolves relative paths like Explorer). Override binary discovery with `X_XP_BIN` if needed. Relative args (`.`, `..`) are canonicalized to absolute paths.
 
 Open a path from another terminal once built/installed:
 

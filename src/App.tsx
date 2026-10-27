@@ -1,6 +1,10 @@
 import {listen} from '@tauri-apps/api/event'
 import {getCurrentWindow} from '@tauri-apps/api/window'
 import {useCallback, useEffect, useState} from 'react'
+import {
+	CommandPalette,
+	type PaletteAction,
+} from './components/explorer/CommandPalette'
 import {ExplorerPane} from './components/explorer/ExplorerPane'
 import {PreviewPanel} from './components/explorer/PreviewPanel'
 import {SettingsModal} from './components/explorer/SettingsModal'
@@ -19,6 +23,8 @@ import {
 	loadRecentPaths,
 	loadShowHidden,
 	loadShowPreview,
+	loadTagDefs,
+	loadTagMap,
 	loadViewMode,
 	pushRecentPath,
 	saveBookmarks,
@@ -27,6 +33,7 @@ import {
 	saveLocale,
 	saveShowHidden,
 	saveShowPreview,
+	saveTagMap,
 	saveViewMode,
 } from './lib/store'
 import type {
@@ -35,8 +42,22 @@ import type {
 	ExplorerTab,
 	FileEntry,
 	KnownFolder,
+	TagDef,
+	TagMap,
 	ViewMode,
 } from './types/fs'
+
+async function resolveOpenPath(raw: string): Promise<string> {
+	if (!raw || isHomePath(raw)) return raw || HOME_PATH
+	try {
+		const entry = await api.resolvePath(raw)
+		return entry.isDir
+			? entry.path
+			: entry.path.replace(/[\\/][^\\/]+$/, '') || entry.path
+	} catch {
+		return raw
+	}
+}
 
 function newTab(path: string): ExplorerTab {
 	return {
@@ -82,6 +103,10 @@ export default function App() {
 	const [toast, setToast] = useState<string | null>(null)
 	const [ready, setReady] = useState(false)
 	const [reloadToken, setReloadToken] = useState(0)
+	const [paletteOpen, setPaletteOpen] = useState(false)
+	const [tagDefs, setTagDefs] = useState<TagDef[]>([])
+	const [tagMap, setTagMap] = useState<TagMap>({})
+	const [tagFilter, setTagFilter] = useState<string | null>(null)
 
 	const activeTab = tabs.find(t => t.id === activeTabId) ?? tabs[0]
 	const currentPath = activeTab?.path ?? HOME_PATH
@@ -104,24 +129,37 @@ export default function App() {
 
 	const navigateTab = useCallback(
 		(next: string) => {
-			setTabs(prev =>
-				prev.map(t => (t.id === activeTabId ? updateTabPath(t, next) : t)),
-			)
-			void recordNavigate(next)
+			void (async () => {
+				const resolved = isHomePath(next) ? next : await resolveOpenPath(next)
+				setTabs(prev =>
+					prev.map(t =>
+						t.id === activeTabId ? updateTabPath(t, resolved) : t,
+					),
+				)
+				void recordNavigate(resolved)
+			})()
 		},
 		[activeTabId, recordNavigate],
 	)
 
 	const navigateActive = useCallback(
 		(next: string) => {
-			if (activePane === 'right' && dualPane) {
-				setRightPath(next)
-				void recordNavigate(next)
-			} else {
-				navigateTab(next)
-			}
+			void (async () => {
+				const resolved = isHomePath(next) ? next : await resolveOpenPath(next)
+				if (activePane === 'right' && dualPane) {
+					setRightPath(resolved)
+					void recordNavigate(resolved)
+				} else {
+					setTabs(prev =>
+						prev.map(t =>
+							t.id === activeTabId ? updateTabPath(t, resolved) : t,
+						),
+					)
+					void recordNavigate(resolved)
+				}
+			})()
 		},
-		[activePane, dualPane, navigateTab, recordNavigate],
+		[activePane, dualPane, activeTabId, recordNavigate],
 	)
 
 	const goHistory = (delta: number) => {
@@ -160,6 +198,8 @@ export default function App() {
 					loc,
 					rec,
 					startup,
+					tags,
+					tmap,
 				] = await Promise.all([
 					api.getHome(),
 					api.getDrives(),
@@ -173,6 +213,8 @@ export default function App() {
 					loadLocale(),
 					loadRecentPaths(),
 					api.getStartupPath(),
+					loadTagDefs(),
+					loadTagMap(),
 				])
 				if (cancelled) return
 				setHome(h)
@@ -185,24 +227,31 @@ export default function App() {
 				setShowHidden(hidden)
 				setLocale(loc)
 				setRecent(rec)
-				const initial =
+				setTagDefs(tags)
+				setTagMap(tmap)
+				const rawInitial =
 					startup || (last && !isHomePath(last) ? last : null) || HOME_PATH
+				const initial = isHomePath(rawInitial)
+					? HOME_PATH
+					: await resolveOpenPath(rawInitial)
 				const tab = newTab(initial)
 				setTabs([tab])
 				setActiveTabId(tab.id)
 				setRightPath(HOME_PATH)
 				setReady(true)
 
-				unlisten = await listen<string>('open-path', event => {
-					const p = event.payload
+				unlisten = await listen<string>('open-path', async event => {
+					const p = await resolveOpenPath(event.payload)
 					setTabs(prev => {
 						if (prev.length === 0) {
-							const t = newTab(p)
-							setActiveTabId(t.id)
-							return [t]
+							const nt = newTab(p)
+							setActiveTabId(nt.id)
+							return [nt]
 						}
-						return prev.map(t =>
-							t.id === (activeTabId || prev[0].id) ? updateTabPath(t, p) : t,
+						return prev.map(tabItem =>
+							tabItem.id === (activeTabId || prev[0].id)
+								? updateTabPath(tabItem, p)
+								: tabItem,
 						)
 					})
 					void recordNavigate(p)
@@ -222,6 +271,10 @@ export default function App() {
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
+			if (e.ctrlKey && e.key.toLowerCase() === 'k') {
+				e.preventDefault()
+				setPaletteOpen(true)
+			}
 			if (e.ctrlKey && e.key.toLowerCase() === 't') {
 				e.preventDefault()
 				const tab = newTab(HOME_PATH)
@@ -383,6 +436,116 @@ export default function App() {
 		else navigateTab(folderPath)
 	}
 
+	const toggleTagOnPaths = (paths: string[], tagId: string) => {
+		setTagMap(prev => {
+			const next: TagMap = {...prev}
+			for (const p of paths) {
+				const cur = new Set(next[p] ?? [])
+				if (cur.has(tagId)) cur.delete(tagId)
+				else cur.add(tagId)
+				const arr = [...cur]
+				if (arr.length === 0) delete next[p]
+				else next[p] = arr
+			}
+			void saveTagMap(next)
+			return next
+		})
+	}
+
+	const paletteActions: PaletteAction[] = [
+		{
+			id: 'home',
+			label: t('home', locale),
+			hint: 'Alt+Home',
+			run: () => navigateActive(HOME_PATH),
+		},
+		{
+			id: 'refresh',
+			label: t('refresh', locale),
+			hint: 'F5',
+			run: bumpReload,
+		},
+		{
+			id: 'new-tab',
+			label: '+ Tab',
+			hint: 'Ctrl+T',
+			run: () => {
+				const tab = newTab(HOME_PATH)
+				setTabs(prev => [...prev, tab])
+				setActiveTabId(tab.id)
+			},
+		},
+		{
+			id: 'dual',
+			label: t('dualPane', locale),
+			hint: 'F3',
+			run: toggleDual,
+		},
+		{
+			id: 'preview',
+			label: t('preview', locale),
+			hint: 'F4',
+			run: togglePreview,
+		},
+		{
+			id: 'hidden',
+			label: t('showHidden', locale),
+			run: toggleHidden,
+		},
+		{
+			id: 'view-details',
+			label: `${t('name', locale)} → Details`,
+			run: () => changeView('details'),
+		},
+		{
+			id: 'view-list',
+			label: `${t('name', locale)} → List`,
+			run: () => changeView('list'),
+		},
+		{
+			id: 'view-icons',
+			label: `${t('name', locale)} → Icons`,
+			run: () => changeView('icons'),
+		},
+		{
+			id: 'view-columns',
+			label: `${t('name', locale)} → ${t('columns', locale)}`,
+			run: () => changeView('columns'),
+		},
+		{
+			id: 'new-folder',
+			label: t('newFolder', locale),
+			run: () => void newFolderOnActive(),
+		},
+		{
+			id: 'new-file',
+			label: t('newFile', locale),
+			run: () => void newFileOnActive(),
+		},
+		{
+			id: 'settings',
+			label: t('settings', locale),
+			run: () => setSettingsOpen(true),
+		},
+		{
+			id: 'tray',
+			label: t('toTray', locale),
+			run: () => void hideToTray(),
+		},
+		...known.map(f => ({
+			id: `folder-${f.id}`,
+			label: f.label,
+			hint: f.path,
+			run: () => navigateActive(f.path),
+		})),
+		...bookmarks.map(b => ({
+			id: `bm-${b.id}`,
+			label: b.label,
+			hint: b.path,
+			run: () => navigateActive(b.path),
+		})),
+	]
+
 	if (!ready || !activeTab) {
 		return (
 			<div className="flex h-full items-center justify-center text-sm opacity-60">
@@ -402,6 +565,9 @@ export default function App() {
 		bookmarks,
 		recent,
 		reloadToken,
+		tagDefs,
+		tagMap,
+		tagFilter,
 		onClipboard: setClipboard,
 		onToast: setToast,
 		onPreviewEntry: setPreviewEntry,
@@ -412,6 +578,7 @@ export default function App() {
 			setActiveTabId(tab.id)
 		},
 		onGoUp: () => void goUp(),
+		onToggleTag: toggleTagOnPaths,
 		onDropComplete: bumpReload,
 	}
 
@@ -457,6 +624,7 @@ export default function App() {
 				}}
 				onBookmark={() => void addBookmarkAt(currentPath)}
 				onToTray={() => void hideToTray()}
+				onCommandPalette={() => setPaletteOpen(true)}
 			/>
 			<div className="flex min-h-0 flex-1">
 				<Sidebar
@@ -464,9 +632,12 @@ export default function App() {
 					drives={drives}
 					known={known}
 					bookmarks={bookmarks}
+					tagDefs={tagDefs}
+					activeTagFilter={tagFilter}
 					currentPath={currentPath}
 					onNavigate={navigateActive}
 					onRemoveBookmark={id => void removeBookmark(id)}
+					onTagFilter={setTagFilter}
 				/>
 				<div className="flex min-w-0 flex-1">
 					<ExplorerPane
@@ -511,6 +682,12 @@ export default function App() {
 					onToast={setToast}
 				/>
 			)}
+			<CommandPalette
+				locale={locale}
+				open={paletteOpen}
+				onClose={() => setPaletteOpen(false)}
+				actions={paletteActions}
+			/>
 			<Toast
 				message={toast}
 				onClose={() => setToast(null)}

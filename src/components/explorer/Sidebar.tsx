@@ -1,15 +1,18 @@
 import {t, type Locale} from '../../lib/i18n'
 import {HOME_PATH, isHomePath} from '../../lib/paths'
-import type {Bookmark, FileEntry, KnownFolder} from '../../types/fs'
+import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
 
 interface SidebarProps {
 	locale: Locale
 	drives: FileEntry[]
 	known: KnownFolder[]
 	bookmarks: Bookmark[]
+	tagDefs: TagDef[]
+	activeTagFilter: string | null
 	currentPath: string
 	onNavigate: (path: string) => void
 	onRemoveBookmark: (id: string) => void
+	onTagFilter: (tagId: string | null) => void
 }
 
 export function Sidebar({
@@ -17,9 +20,12 @@ export function Sidebar({
 	drives,
 	known,
 	bookmarks,
+	tagDefs,
+	activeTagFilter,
 	currentPath,
 	onNavigate,
 	onRemoveBookmark,
+	onTagFilter,
 }: SidebarProps) {
 	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
 	const item = (active: boolean) =>
@@ -68,6 +74,34 @@ export function Sidebar({
 						onClick={() => onNavigate(d.path)}
 					>
 						{d.name}
+					</button>
+				))}
+			</section>
+			<section>
+				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
+					{L('tags')}
+				</h2>
+				<button
+					type="button"
+					className={item(activeTagFilter === null)}
+					onClick={() => onTagFilter(null)}
+				>
+					—
+				</button>
+				{tagDefs.map(tag => (
+					<button
+						key={tag.id}
+						type="button"
+						className={`${item(activeTagFilter === tag.id)} flex items-center gap-2`}
+						onClick={() =>
+							onTagFilter(activeTagFilter === tag.id ? null : tag.id)
+						}
+					>
+						<span
+							className="h-2.5 w-2.5 shrink-0 rounded-full"
+							style={{background: tag.color}}
+						/>
+						{tag.name}
 					</button>
 				))}
 			</section>

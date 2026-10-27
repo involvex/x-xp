@@ -5,8 +5,8 @@ use commands::fs::{
 	move_entries, open_path, read_dir, read_text_preview, rename_entry,
 };
 use commands::path::{
-	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path, resolve_path,
-	set_startup_path, StartupState,
+	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path,
+	parse_startup_path_with_cwd, resolve_path, set_startup_path, StartupState,
 };
 use commands::registry::{
 	backup_folder_handlers, create_system_restore_point, get_registry_status,
@@ -43,8 +43,8 @@ pub fn run() {
 				.build(),
 		)
 		.plugin(tauri_plugin_global_shortcut::Builder::new().build())
-		.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-			let path = parse_startup_path(&argv);
+		.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+			let path = parse_startup_path_with_cwd(&argv, Some(cwd.as_str()));
 			show_main_window(app);
 			if let Some(p) = path {
 				if let Some(window) = app.get_webview_window("main") {

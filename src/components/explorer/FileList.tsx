@@ -1,6 +1,13 @@
 import {formatDate, formatSize} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
-import type {FileEntry, SortKey, SortState, ViewMode} from '../../types/fs'
+import type {
+	FileEntry,
+	SortKey,
+	SortState,
+	TagDef,
+	TagMap,
+	ViewMode,
+} from '../../types/fs'
 import {FileIcon} from './FileIcon'
 
 export const DND_MIME = 'application/x-xp-paths'
@@ -14,6 +21,8 @@ interface FileListProps {
 	renaming: string | null
 	renameValue: string
 	dropTarget: string | null
+	tagDefs: TagDef[]
+	tagMap: TagMap
 	onSort: (key: SortKey) => void
 	onRenameValue: (v: string) => void
 	onCommitRename: () => void
@@ -27,6 +36,32 @@ interface FileListProps {
 	onDropOnEntry: (entry: FileEntry, e: React.DragEvent) => void
 	onDragOverPane: (e: React.DragEvent) => void
 	onDropOnPane: (e: React.DragEvent) => void
+}
+
+function TagDots({
+	path,
+	tagDefs,
+	tagMap,
+}: {
+	path: string
+	tagDefs: TagDef[]
+	tagMap: TagMap
+}) {
+	const ids = tagMap[path] ?? []
+	const tags = tagDefs.filter(d => ids.includes(d.id))
+	if (tags.length === 0) return null
+	return (
+		<span className="flex shrink-0 gap-0.5">
+			{tags.slice(0, 4).map(tag => (
+				<span
+					key={tag.id}
+					className="h-2 w-2 rounded-full"
+					style={{background: tag.color}}
+					title={tag.name}
+				/>
+			))}
+		</span>
+	)
 }
 
 function sortMark(sort: SortState, key: SortKey): string {
@@ -48,6 +83,8 @@ export function FileList({
 	renaming,
 	renameValue,
 	dropTarget,
+	tagDefs,
+	tagMap,
 	onSort,
 	onRenameValue,
 	onCommitRename,
@@ -106,6 +143,11 @@ export function FileList({
 							size={32}
 						/>
 						<span className="w-full truncate">{entry.name}</span>
+						<TagDots
+							path={entry.path}
+							tagDefs={tagDefs}
+							tagMap={tagMap}
+						/>
 					</button>
 				))}
 			</div>
@@ -192,6 +234,11 @@ export function FileList({
 										{entry.name}
 									</span>
 								)}
+								<TagDots
+									path={entry.path}
+									tagDefs={tagDefs}
+									tagMap={tagMap}
+								/>
 							</span>
 							{viewMode === 'details' && (
 								<>

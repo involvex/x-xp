@@ -25,6 +25,7 @@ export const api = {
 	getKnownFolders: () => invoke<KnownFolder[]>('get_known_folders'),
 	getStartupPath: () => invoke<string | null>('get_startup_path'),
 	parentPath: (path: string) => invoke<string | null>('parent_path', {path}),
+	resolvePath: (path: string) => invoke<FileEntry>('resolve_path', {path}),
 	searchByName: (root: string, query: string, maxResults?: number) =>
 		invoke<SearchResult>('search_by_name', {root, query, maxResults}),
 	getRegistryStatus: () => invoke<RegistryBackupStatus>('get_registry_status'),

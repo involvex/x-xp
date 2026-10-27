@@ -1,4 +1,5 @@
 import {t, type Locale} from '../../lib/i18n'
+import type {TagDef} from '../../types/fs'
 
 export interface ContextMenuState {
 	x: number
@@ -12,6 +13,8 @@ interface ContextMenuProps {
 	menu: ContextMenuState | null
 	canPaste: boolean
 	dualPane: boolean
+	tagDefs: TagDef[]
+	activeTagIds: string[]
 	onOpen: () => void
 	onOpenSystem: () => void
 	onOpenNewTab: () => void
@@ -26,6 +29,7 @@ interface ContextMenuProps {
 	onCopyPath: () => void
 	onProperties: () => void
 	onAddBookmark: () => void
+	onToggleTag: (tagId: string) => void
 	onClose: () => void
 }
 
@@ -34,6 +38,8 @@ export function ContextMenu({
 	menu,
 	canPaste,
 	dualPane,
+	tagDefs,
+	activeTagIds,
 	onOpen,
 	onOpenSystem,
 	onOpenNewTab,
@@ -48,6 +54,7 @@ export function ContextMenu({
 	onCopyPath,
 	onProperties,
 	onAddBookmark,
+	onToggleTag,
 	onClose,
 }: ContextMenuProps) {
 	if (!menu) return null
@@ -126,6 +133,28 @@ export function ContextMenu({
 						>
 							{L('properties')}
 						</button>
+						<hr className="my-1 border-[var(--xp-border)]" />
+						<div className="px-3 py-1 text-[10px] uppercase tracking-wide opacity-50">
+							{L('tags')}
+						</div>
+						{tagDefs.map(tag => {
+							const on = activeTagIds.includes(tag.id)
+							return (
+								<button
+									key={tag.id}
+									type="button"
+									className={item}
+									onClick={() => onToggleTag(tag.id)}
+								>
+									<span
+										className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+										style={{background: tag.color}}
+									/>
+									{on ? '✓ ' : ''}
+									{tag.name}
+								</button>
+							)
+						})}
 						<hr className="my-1 border-[var(--xp-border)]" />
 						<button
 							type="button"

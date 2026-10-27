@@ -84,20 +84,44 @@ pub async fn set_startup_path(
 	Ok(())
 }
 
+/// Strip Windows `\\?\` / `\\?\UNC\` prefixes from canonicalized paths.
+pub fn normalize_path_display(path: PathBuf) -> String {
+	let s = path.to_string_lossy();
+	let trimmed = s
+		.strip_prefix(r"\\?\UNC\")
+		.map(|rest| format!(r"\\{rest}"))
+		.or_else(|| s.strip_prefix(r"\\?\").map(|rest| rest.to_string()))
+		.unwrap_or_else(|| s.into_owned());
+	trimmed
+}
+
+/// Resolve relative paths (`.`, `..`, `foo`) against `cwd` or process CWD, then canonicalize.
+pub fn resolve_existing_path(candidate: &str, cwd: Option<&str>) -> Option<PathBuf> {
+	let raw = PathBuf::from(candidate);
+	let absolute = if raw.is_absolute() {
+		raw
+	} else {
+		let base = cwd
+			.map(PathBuf::from)
+			.or_else(|| std::env::current_dir().ok())?;
+		base.join(raw)
+	};
+	absolute.canonicalize().ok()
+}
+
 #[tauri::command]
 pub async fn resolve_path(path: String) -> Result<FileEntry, String> {
-	let p = PathBuf::from(&path);
-	if !p.exists() {
-		return Err(format!("Path does not exist: {path}"));
-	}
+	let p = resolve_existing_path(&path, None)
+		.ok_or_else(|| format!("Path does not exist: {path}"))?;
 	let metadata = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+	let display = normalize_path_display(p.clone());
 	let name = p
 		.file_name()
 		.map(|n| n.to_string_lossy().into_owned())
-		.unwrap_or_else(|| p.to_string_lossy().into_owned());
+		.unwrap_or_else(|| display.clone());
 	Ok(FileEntry {
 		name,
-		path: p.to_string_lossy().into_owned(),
+		path: display,
 		is_dir: metadata.is_dir(),
 		size: if metadata.is_dir() {
 			0
@@ -127,18 +151,23 @@ pub async fn parent_path(path: String) -> Result<Option<String>, String> {
 	}))
 }
 
-/// Parse CLI args: first non-flag arg that is an existing directory.
+/// Parse CLI args: first non-flag arg that is an existing path.
+/// Relative args (`.`, `..`) are resolved against `cwd` (or process CWD) to an absolute path.
 pub fn parse_startup_path(args: &[String]) -> Option<String> {
+	parse_startup_path_with_cwd(args, None)
+}
+
+pub fn parse_startup_path_with_cwd(args: &[String], cwd: Option<&str>) -> Option<String> {
 	args.iter()
 		.skip(1)
 		.find(|a| !a.starts_with('-'))
 		.and_then(|candidate| {
-			let path = PathBuf::from(candidate);
+			let path = resolve_existing_path(candidate, cwd)?;
 			if path.is_dir() {
-				Some(path.to_string_lossy().into_owned())
+				Some(normalize_path_display(path))
 			} else if path.is_file() {
 				path.parent()
-					.map(|p| p.to_string_lossy().into_owned())
+					.map(|p| normalize_path_display(p.to_path_buf()))
 			} else {
 				None
 			}

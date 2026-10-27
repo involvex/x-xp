@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
+	"bin": {
+		"x-xp": "./bin/x-xp.js"
+	},
 	"scripts": {
 		"prebuild": "bun run check && bun run lint",
 		"build": "tsc && vite build",

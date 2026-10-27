@@ -9,9 +9,12 @@ import type {
 	KnownFolder,
 	SortKey,
 	SortState,
+	TagDef,
+	TagMap,
 	ViewMode,
 } from '../../types/fs'
 import {AddressBar} from './AddressBar'
+import {ColumnsView} from './ColumnsView'
 import {ContextMenu, type ContextMenuState} from './ContextMenu'
 import {DND_MIME, FileList} from './FileList'
 import {HomePage} from './HomePage'
@@ -32,6 +35,9 @@ interface ExplorerPaneProps {
 	known: KnownFolder[]
 	bookmarks: Bookmark[]
 	recent: string[]
+	tagDefs: TagDef[]
+	tagMap: TagMap
+	tagFilter: string | null
 	onPathChange: (path: string) => void
 	onClipboard: (clip: ClipboardState | null) => void
 	onFocus: () => void
@@ -41,6 +47,7 @@ interface ExplorerPaneProps {
 	onOpenNewTab: (path: string) => void
 	onOpenOtherPane: (path: string) => void
 	onGoUp: () => void
+	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
 }
 
@@ -85,6 +92,9 @@ export function ExplorerPane({
 	known,
 	bookmarks,
 	recent,
+	tagDefs,
+	tagMap,
+	tagFilter,
 	onPathChange,
 	onClipboard,
 	onFocus,
@@ -94,6 +104,7 @@ export function ExplorerPane({
 	onOpenNewTab,
 	onOpenOtherPane,
 	onGoUp,
+	onToggleTag,
 	onDropComplete,
 }: ExplorerPaneProps) {
 	const [entries, setEntries] = useState<FileEntry[]>([])
@@ -168,9 +179,14 @@ export function ExplorerPane({
 
 	const visible = useMemo(() => {
 		const base = searchEntries ?? entries
-		const filtered = showHidden ? base : base.filter(e => !e.hidden)
+		let filtered = showHidden ? base : base.filter(e => !e.hidden)
+		if (tagFilter) {
+			filtered = filtered.filter(e =>
+				(tagMap[e.path] ?? []).includes(tagFilter),
+			)
+		}
 		return sortEntries(filtered, sort)
-	}, [searchEntries, entries, sort, showHidden])
+	}, [searchEntries, entries, sort, showHidden, tagFilter, tagMap])
 
 	const selectedEntries = useMemo(
 		() => visible.filter(e => selected.has(e.path)),
@@ -436,6 +452,29 @@ export function ExplorerPane({
 					recent={recent}
 					onNavigate={navigate}
 				/>
+			) : viewMode === 'columns' ? (
+				<ColumnsView
+					locale={locale}
+					rootPath={path}
+					showHidden={showHidden}
+					selected={selected}
+					tagDefs={tagDefs}
+					tagMap={tagMap}
+					reloadToken={reloadToken}
+					onSelect={onClick}
+					onOpenFile={entry => void openEntry(entry)}
+					onNavigateRoot={navigate}
+					onContextMenu={(entry, e) => {
+						e.preventDefault()
+						if (!selected.has(entry.path)) setSelected(new Set([entry.path]))
+						setMenu({
+							x: e.clientX,
+							y: e.clientY,
+							path: entry.path,
+							isDir: entry.isDir,
+						})
+					}}
+				/>
 			) : (
 				<FileList
 					locale={locale}
@@ -446,6 +485,8 @@ export function ExplorerPane({
 					renaming={renaming}
 					renameValue={renameValue}
 					dropTarget={dropTarget}
+					tagDefs={tagDefs}
+					tagMap={tagMap}
 					onSort={toggleSort}
 					onRenameValue={setRenameValue}
 					onCommitRename={() => void commitRename()}
@@ -483,10 +524,15 @@ export function ExplorerPane({
 				menu={menu}
 				canPaste={!!clipboard && clipboard.paths.length > 0 && !atHome}
 				dualPane={dualPane}
+				tagDefs={tagDefs}
+				activeTagIds={menu?.path ? (tagMap[menu.path] ?? []) : []}
 				onClose={() => setMenu(null)}
 				onOpen={() => {
-					const entry = visible.find(x => x.path === menu?.path)
+					const entry =
+						visible.find(x => x.path === menu?.path) ??
+						entries.find(x => x.path === menu?.path)
 					if (entry) void openEntry(entry)
+					else if (menu?.path && menu.isDir) navigate(menu.path)
 					setMenu(null)
 				}}
 				onOpenSystem={() => {
@@ -537,7 +583,9 @@ export function ExplorerPane({
 					setMenu(null)
 				}}
 				onProperties={() => {
-					const entry = visible.find(x => x.path === menu?.path)
+					const entry =
+						visible.find(x => x.path === menu?.path) ??
+						entries.find(x => x.path === menu?.path)
 					if (entry) setPropsEntry(entry)
 					setMenu(null)
 				}}
@@ -546,6 +594,11 @@ export function ExplorerPane({
 						onAddBookmark(menu.path, pathBasename(menu.path) || menu.path)
 					}
 					setMenu(null)
+				}}
+				onToggleTag={tagId => {
+					const paths =
+						selected.size > 0 ? [...selected] : menu?.path ? [menu.path] : []
+					if (paths.length > 0) onToggleTag(paths, tagId)
 				}}
 			/>
 			{propsEntry && (

@@ -26,6 +26,7 @@ interface ToolbarProps {
 	onNewTab: () => void
 	onBookmark: () => void
 	onToTray: () => void
+	onCommandPalette: () => void
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -130,7 +131,16 @@ export function Toolbar(props: ToolbarProps) {
 				<option value="details">Details</option>
 				<option value="list">List</option>
 				<option value="icons">Icons</option>
+				<option value="columns">{L('columns')}</option>
 			</select>
+			<button
+				type="button"
+				className={btn}
+				onClick={props.onCommandPalette}
+				title={`${L('commandPalette')} (Ctrl+K)`}
+			>
+				⌘
+			</button>
 			<input
 				type="search"
 				placeholder={L('search')}
