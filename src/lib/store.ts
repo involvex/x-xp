@@ -84,6 +84,26 @@ export async function saveDualPane(value: boolean): Promise<void> {
 	await store.save()
 }
 
+/** Left pane share of the dual-pane area (0–1). */
+export const DUAL_SPLIT_DEFAULT = 0.5
+export const DUAL_SPLIT_MIN = 0.2
+export const DUAL_SPLIT_MAX = 0.8
+
+export function clampDualSplit(ratio: number): number {
+	if (!Number.isFinite(ratio)) return DUAL_SPLIT_DEFAULT
+	return Math.min(DUAL_SPLIT_MAX, Math.max(DUAL_SPLIT_MIN, ratio))
+}
+
+export async function loadDualSplit(): Promise<number> {
+	const v = await store.get<number>('dualSplit')
+	return typeof v === 'number' ? clampDualSplit(v) : DUAL_SPLIT_DEFAULT
+}
+
+export async function saveDualSplit(ratio: number): Promise<void> {
+	await store.set('dualSplit', clampDualSplit(ratio))
+	await store.save()
+}
+
 export async function loadShowPreview(): Promise<boolean> {
 	return (await store.get<boolean>('showPreview')) ?? false
 }
@@ -112,6 +132,38 @@ export async function loadPreviewWidth(): Promise<number> {
 
 export async function savePreviewWidth(width: number): Promise<void> {
 	await store.set('previewWidth', clampPreviewWidth(width))
+	await store.save()
+}
+
+/** Sidebar rail width in px (was Tailwind w-52 ≈ 208). */
+export const SIDEBAR_WIDTH_DEFAULT = 208
+export const SIDEBAR_WIDTH_MIN = 160
+export const SIDEBAR_WIDTH_MAX = 420
+
+export function clampSidebarWidth(width: number): number {
+	if (!Number.isFinite(width)) return SIDEBAR_WIDTH_DEFAULT
+	return Math.min(
+		SIDEBAR_WIDTH_MAX,
+		Math.max(SIDEBAR_WIDTH_MIN, Math.round(width)),
+	)
+}
+
+export async function loadSidebarWidth(): Promise<number> {
+	const v = await store.get<number>('sidebarWidth')
+	return typeof v === 'number' ? clampSidebarWidth(v) : SIDEBAR_WIDTH_DEFAULT
+}
+
+export async function saveSidebarWidth(width: number): Promise<void> {
+	await store.set('sidebarWidth', clampSidebarWidth(width))
+	await store.save()
+}
+
+export async function loadSidebarCollapsed(): Promise<boolean> {
+	return (await store.get<boolean>('sidebarCollapsed')) ?? false
+}
+
+export async function saveSidebarCollapsed(value: boolean): Promise<void> {
+	await store.set('sidebarCollapsed', value)
 	await store.save()
 }
 

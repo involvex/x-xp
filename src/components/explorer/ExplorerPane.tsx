@@ -15,6 +15,7 @@ import {t, type Locale} from '../../lib/i18n'
 import {isHomePath, isRecyclePath, isVirtualPath} from '../../lib/paths'
 import {sortEntries} from '../../lib/sort'
 import {newTransferJobId} from '../../lib/transfer'
+import {pairTransfer, type UndoAction} from '../../lib/undo'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -72,11 +73,7 @@ interface ExplorerPaneProps {
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
 	onClearSearch?: () => void
-	onPushUndo?: (
-		action:
-			| {type: 'rename'; from: string; to: string}
-			| {type: 'delete'; paths: string[]},
-	) => void
+	onPushUndo?: (action: UndoAction) => void
 	/** Increment while active to focus the address bar (Ctrl+L). */
 	focusAddressNonce?: number
 }
@@ -499,11 +496,23 @@ export function ExplorerPane({
 	const doPaste = async () => {
 		if (atVirtual || !clipboard || clipboard.paths.length === 0) return
 		const jobId = newTransferJobId()
+		const sources = [...clipboard.paths]
+		const mode = clipboard.mode
 		try {
-			if (clipboard.mode === 'copy') {
-				await api.copyEntries(clipboard.paths, path, jobId)
+			if (mode === 'copy') {
+				const created = await api.copyEntries(sources, path, jobId)
+				onPushUndo?.({
+					type: 'copy',
+					sources,
+					destDir: path,
+					created: created.map(e => e.path),
+				})
 			} else {
-				await api.moveEntries(clipboard.paths, path, jobId)
+				const results = await api.moveEntries(sources, path, jobId)
+				onPushUndo?.({
+					type: 'move',
+					pairs: pairTransfer(sources, results),
+				})
 				onClipboard(null)
 			}
 			await load(path)
@@ -619,8 +628,21 @@ export function ExplorerPane({
 		if (filtered.length === 0) return
 		const jobId = newTransferJobId()
 		try {
-			if (copy) await api.copyEntries(filtered, destDir, jobId)
-			else await api.moveEntries(filtered, destDir, jobId)
+			if (copy) {
+				const created = await api.copyEntries(filtered, destDir, jobId)
+				onPushUndo?.({
+					type: 'copy',
+					sources: filtered,
+					destDir,
+					created: created.map(e => e.path),
+				})
+			} else {
+				const results = await api.moveEntries(filtered, destDir, jobId)
+				onPushUndo?.({
+					type: 'move',
+					pairs: pairTransfer(filtered, results),
+				})
+			}
 			await load(path)
 			onDropComplete?.()
 		} catch (e) {

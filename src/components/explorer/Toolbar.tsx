@@ -9,6 +9,7 @@ interface ToolbarProps {
 	viewMode: ViewMode
 	dualPane: boolean
 	showPreview: boolean
+	sidebarCollapsed: boolean
 	showHidden: boolean
 	showFolderSizes: boolean
 	searchQuery: string
@@ -23,6 +24,7 @@ interface ToolbarProps {
 	onNewFile: () => void
 	onToggleDual: () => void
 	onTogglePreview: () => void
+	onToggleSidebar: () => void
 	onToggleHidden: () => void
 	onToggleFolderSizes: () => void
 	onViewMode: (mode: ViewMode) => void
@@ -126,6 +128,16 @@ export function Toolbar(props: ToolbarProps) {
 				onClick={props.onTogglePreview}
 			>
 				{L('preview')}
+			</button>
+			<button
+				type="button"
+				className={`${btn} ${!props.sidebarCollapsed ? 'ring-1 ring-[var(--xp-fg)]' : ''}`}
+				onClick={props.onToggleSidebar}
+				title={`${
+					props.sidebarCollapsed ? L('expandSidebar') : L('collapseSidebar')
+				} (Ctrl+B)`}
+			>
+				{L('sidebar')}
 			</button>
 			<button
 				type="button"

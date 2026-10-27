@@ -6,6 +6,7 @@ import {
 	type PaletteAction,
 } from './components/explorer/CommandPalette'
 import {ExplorerPane} from './components/explorer/ExplorerPane'
+import {PaneSplitter} from './components/explorer/PaneSplitter'
 import {PreviewPanel} from './components/explorer/PreviewPanel'
 import {SettingsModal} from './components/explorer/SettingsModal'
 import {Sidebar} from './components/explorer/Sidebar'
@@ -32,11 +33,13 @@ import {
 	defaultDesktopPrefs,
 	defaultQuickAccessPrefs,
 	defaultSort,
+	DUAL_SPLIT_DEFAULT,
 	loadAutoRefreshFolders,
 	loadBookmarks,
 	loadContextMenuSettings,
 	loadDesktopPrefs,
 	loadDualPane,
+	loadDualSplit,
 	loadLastPath,
 	loadLocale,
 	loadPreviewWidth,
@@ -46,6 +49,8 @@ import {
 	loadShowFolderSizes,
 	loadShowHidden,
 	loadShowPreview,
+	loadSidebarCollapsed,
+	loadSidebarWidth,
 	loadTagDefs,
 	loadTagMap,
 	loadViewMode,
@@ -56,6 +61,7 @@ import {
 	saveContextMenuSettings,
 	saveDesktopPrefs,
 	saveDualPane,
+	saveDualSplit,
 	saveLastPath,
 	saveLocale,
 	savePreviewWidth,
@@ -64,8 +70,11 @@ import {
 	saveShowFolderSizes,
 	saveShowHidden,
 	saveShowPreview,
+	saveSidebarCollapsed,
+	saveSidebarWidth,
 	saveTagMap,
 	saveViewMode,
+	SIDEBAR_WIDTH_DEFAULT,
 	type DesktopPrefs,
 } from './lib/store'
 import {
@@ -74,6 +83,7 @@ import {
 	type TransferProgress,
 } from './lib/transfer'
 import {
+	performRedo,
 	performUndo,
 	popUndo,
 	pushUndo,
@@ -152,8 +162,12 @@ export default function App() {
 	const [rightPath, setRightPath] = useState(HOME_PATH)
 	const [viewMode, setViewMode] = useState<ViewMode>('details')
 	const [dualPane, setDualPane] = useState(false)
+	const [dualSplit, setDualSplit] = useState(DUAL_SPLIT_DEFAULT)
+	const dualPanesRef = useRef<HTMLDivElement>(null)
 	const [showPreview, setShowPreview] = useState(false)
 	const [previewWidth, setPreviewWidth] = useState(PREVIEW_WIDTH_DEFAULT)
+	const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH_DEFAULT)
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const [showHidden, setShowHidden] = useState(false)
 	const [showFolderSizes, setShowFolderSizes] = useState(false)
 	const [autoRefreshFolders, setAutoRefreshFolders] = useState(true)
@@ -172,6 +186,7 @@ export default function App() {
 		onAction?: () => void
 	} | null>(null)
 	const undoRef = useRef<UndoAction[]>([])
+	const redoRef = useRef<UndoAction[]>([])
 	const [transfer, setTransfer] = useState<TransferProgress | null>(null)
 	const showToast = useCallback((message: string) => {
 		setToast({message})
@@ -202,16 +217,18 @@ export default function App() {
 
 	const runLastUndo = useCallback(async () => {
 		const {stack, action} = popUndo(undoRef.current)
-		undoRef.current = stack
 		if (!action) {
 			showToast(t('undoEmpty', locale))
 			return
 		}
+		undoRef.current = stack
 		try {
 			const key = await performUndo(action)
+			redoRef.current = pushUndo(redoRef.current, action)
 			showToast(t(key, locale))
 			bumpReload()
 		} catch (e) {
+			undoRef.current = pushUndo(undoRef.current, action)
 			const msg = String(e)
 			showToast(
 				msg.includes('undoDeleteFailed') ? t('undoDeleteFailed', locale) : msg,
@@ -219,9 +236,28 @@ export default function App() {
 		}
 	}, [bumpReload, locale, showToast])
 
+	const runLastRedo = useCallback(async () => {
+		const {stack, action} = popUndo(redoRef.current)
+		if (!action) {
+			showToast(t('redoEmpty', locale))
+			return
+		}
+		redoRef.current = stack
+		try {
+			const {key, action: next} = await performRedo(action)
+			undoRef.current = pushUndo(undoRef.current, next)
+			showToast(t(key, locale))
+			bumpReload()
+		} catch (e) {
+			redoRef.current = pushUndo(redoRef.current, action)
+			showToast(String(e))
+		}
+	}, [bumpReload, locale, showToast])
+
 	const pushUndoAction = useCallback(
 		(action: UndoAction) => {
 			undoRef.current = pushUndo(undoRef.current, action)
+			redoRef.current = []
 			setToast({
 				message: t(undoPromptKey(action), locale),
 				actionLabel: t('undo', locale),
@@ -312,8 +348,11 @@ export default function App() {
 					vm,
 					bm,
 					dual,
+					split,
 					preview,
 					previewW,
+					sidebarW,
+					sidebarCollapsedOn,
 					hidden,
 					folderSizesOn,
 					autoRefreshOn,
@@ -334,8 +373,11 @@ export default function App() {
 					loadViewMode(),
 					loadBookmarks(),
 					loadDualPane(),
+					loadDualSplit(),
 					loadShowPreview(),
 					loadPreviewWidth(),
+					loadSidebarWidth(),
+					loadSidebarCollapsed(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
 					loadAutoRefreshFolders(),
@@ -357,8 +399,11 @@ export default function App() {
 				setViewMode(vm)
 				setBookmarks(bm)
 				setDualPane(dual)
+				setDualSplit(split)
 				setShowPreview(preview)
 				setPreviewWidth(previewW)
+				setSidebarWidth(sidebarW)
+				setSidebarCollapsed(sidebarCollapsedOn)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
 				setAutoRefreshFolders(autoRefreshOn)
@@ -599,9 +644,22 @@ export default function App() {
 				e.preventDefault()
 				togglePreview()
 			}
+			if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'b' && !typing) {
+				e.preventDefault()
+				toggleSidebarCollapsed()
+			}
 			if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) {
 				e.preventDefault()
 				void runLastUndo()
+			}
+			if (
+				e.ctrlKey &&
+				(e.key.toLowerCase() === 'y' ||
+					(e.shiftKey && e.key.toLowerCase() === 'z')) &&
+				!typing
+			) {
+				e.preventDefault()
+				void runLastRedo()
 			}
 			if (e.altKey && e.key === 'ArrowLeft' && !typing) {
 				e.preventDefault()
@@ -645,6 +703,14 @@ export default function App() {
 		setShowPreview(v => {
 			const next = !v
 			void saveShowPreview(next)
+			return next
+		})
+	}
+
+	const toggleSidebarCollapsed = () => {
+		setSidebarCollapsed(v => {
+			const next = !v
+			void saveSidebarCollapsed(next)
 			return next
 		})
 	}
@@ -913,6 +979,14 @@ export default function App() {
 			run: togglePreview,
 		},
 		{
+			id: 'sidebar',
+			label: sidebarCollapsed
+				? t('expandSidebar', locale)
+				: t('collapseSidebar', locale),
+			hint: 'Ctrl+B',
+			run: toggleSidebarCollapsed,
+		},
+		{
 			id: 'next-tab',
 			label: '+ Tab →',
 			hint: 'Ctrl+Tab',
@@ -1056,6 +1130,7 @@ export default function App() {
 				viewMode={viewMode}
 				dualPane={dualPane}
 				showPreview={showPreview}
+				sidebarCollapsed={sidebarCollapsed}
 				showHidden={showHidden}
 				showFolderSizes={showFolderSizes}
 				searchQuery={searchQuery}
@@ -1069,6 +1144,7 @@ export default function App() {
 				onNewFile={() => void newFileOnActive()}
 				onToggleDual={toggleDual}
 				onTogglePreview={togglePreview}
+				onToggleSidebar={toggleSidebarCollapsed}
 				onToggleHidden={toggleHidden}
 				onToggleFolderSizes={toggleFolderSizes}
 				onViewMode={changeView}
@@ -1103,40 +1179,78 @@ export default function App() {
 					onReorderQuickAccess={(from, to) => void reorderQuickAccess(from, to)}
 					onHideQuickAccess={id => void hideQuickAccess(id)}
 					onTagFilter={setTagFilter}
+					width={sidebarWidth}
+					collapsed={sidebarCollapsed}
+					onWidthChange={setSidebarWidth}
+					onWidthCommit={w => {
+						setSidebarWidth(w)
+						void saveSidebarWidth(w)
+					}}
+					onToggleCollapsed={toggleSidebarCollapsed}
 				/>
 				<div className="flex min-w-0 flex-1">
-					<ExplorerPane
-						{...paneShared}
-						path={currentPath}
-						searchQuery={activePane === 'left' || !dualPane ? searchQuery : ''}
-						active={activePane === 'left' || !dualPane}
-						focusAddressNonce={
-							activePane === 'left' || !dualPane ? focusAddressNonce : 0
-						}
-						onPathChange={navigateTab}
-						onFocus={() => setActivePane('left')}
-						onOpenOtherPane={openInOtherPane}
-					/>
-					{dualPane && (
-						<>
-							<div className="w-px bg-[var(--xp-border)]" />
+					<div
+						ref={dualPanesRef}
+						className="flex min-h-0 min-w-0 flex-1"
+					>
+						<div
+							className={`flex min-h-0 min-w-0 flex-col ${dualPane ? '' : 'min-w-0 flex-1'}`}
+							style={
+								dualPane
+									? {
+											width: `${dualSplit * 100}%`,
+											flex: '0 0 auto',
+										}
+									: undefined
+							}
+						>
 							<ExplorerPane
 								{...paneShared}
-								path={rightPath || home || HOME_PATH}
-								searchQuery={activePane === 'right' ? searchQuery : ''}
-								active={activePane === 'right'}
-								focusAddressNonce={
-									activePane === 'right' ? focusAddressNonce : 0
+								path={currentPath}
+								searchQuery={
+									activePane === 'left' || !dualPane ? searchQuery : ''
 								}
-								onPathChange={p => {
-									setRightPath(p)
-									void recordNavigate(p)
-								}}
-								onFocus={() => setActivePane('right')}
-								onOpenOtherPane={p => navigateTab(p)}
+								active={activePane === 'left' || !dualPane}
+								focusAddressNonce={
+									activePane === 'left' || !dualPane ? focusAddressNonce : 0
+								}
+								onPathChange={navigateTab}
+								onFocus={() => setActivePane('left')}
+								onOpenOtherPane={openInOtherPane}
 							/>
-						</>
-					)}
+						</div>
+						{dualPane && (
+							<>
+								<PaneSplitter
+									label={t('resizePanes', locale)}
+									containerRef={dualPanesRef}
+									ratio={dualSplit}
+									onRatioChange={setDualSplit}
+									onRatioCommit={r => {
+										setDualSplit(r)
+										void saveDualSplit(r)
+									}}
+								/>
+								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+									<ExplorerPane
+										{...paneShared}
+										path={rightPath || home || HOME_PATH}
+										searchQuery={activePane === 'right' ? searchQuery : ''}
+										active={activePane === 'right'}
+										focusAddressNonce={
+											activePane === 'right' ? focusAddressNonce : 0
+										}
+										onPathChange={p => {
+											setRightPath(p)
+											void recordNavigate(p)
+										}}
+										onFocus={() => setActivePane('right')}
+										onOpenOtherPane={p => navigateTab(p)}
+									/>
+								</div>
+							</>
+						)}
+					</div>
 					{showPreview && (
 						<PreviewPanel
 							locale={locale}

@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useCallback, useRef, useState} from 'react'
 import {t, type Locale} from '../../lib/i18n'
 import {
 	HOME_PATH,
@@ -6,6 +6,11 @@ import {
 	isRecyclePath,
 	RECYCLE_PATH,
 } from '../../lib/paths'
+import {
+	clampSidebarWidth,
+	SIDEBAR_WIDTH_DEFAULT,
+	SIDEBAR_WIDTH_MIN,
+} from '../../lib/store'
 import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
 
 const BM_DND = 'application/x-xp-bookmark-index'
@@ -27,6 +32,11 @@ interface SidebarProps {
 	onReorderQuickAccess: (fromIndex: number, toIndex: number) => void
 	onHideQuickAccess: (id: string) => void
 	onTagFilter: (tagId: string | null) => void
+	width?: number
+	collapsed?: boolean
+	onWidthChange?: (width: number) => void
+	onWidthCommit?: (width: number) => void
+	onToggleCollapsed?: () => void
 }
 
 type EditTarget =
@@ -48,6 +58,11 @@ export function Sidebar({
 	onReorderQuickAccess,
 	onHideQuickAccess,
 	onTagFilter,
+	width = SIDEBAR_WIDTH_DEFAULT,
+	collapsed = false,
+	onWidthChange,
+	onWidthCommit,
+	onToggleCollapsed,
 }: SidebarProps) {
 	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
 	const [editing, setEditing] = useState<EditTarget>(null)
@@ -80,16 +95,140 @@ export function Sidebar({
 	const isEditing = (kind: 'bookmark' | 'quick', id: string) =>
 		editing?.kind === kind && editing.id === id
 
-	return (
-		<aside className="flex w-52 shrink-0 flex-col gap-3 overflow-auto border-r border-[var(--xp-border)] bg-[var(--xp-panel)] p-2 text-sm">
-			<section>
+	const panelWidth = clampSidebarWidth(width)
+	const [dragging, setDragging] = useState(false)
+	const dragRef = useRef<{
+		startX: number
+		startW: number
+		current: number
+	} | null>(null)
+
+	const onResizePointerDown = useCallback(
+		(e: React.PointerEvent) => {
+			if (!onWidthChange) return
+			e.preventDefault()
+			e.stopPropagation()
+			;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+			dragRef.current = {
+				startX: e.clientX,
+				startW: panelWidth,
+				current: panelWidth,
+			}
+			setDragging(true)
+		},
+		[onWidthChange, panelWidth],
+	)
+
+	const onResizePointerMove = useCallback(
+		(e: React.PointerEvent) => {
+			if (!dragRef.current || !onWidthChange) return
+			const raw = dragRef.current.startW + (e.clientX - dragRef.current.startX)
+			dragRef.current.current = raw
+			// Past the min: hold at min until release (collapse) or bounce back
+			onWidthChange(
+				raw < SIDEBAR_WIDTH_MIN ? SIDEBAR_WIDTH_MIN : clampSidebarWidth(raw),
+			)
+		},
+		[onWidthChange],
+	)
+
+	const onResizePointerUp = useCallback(
+		(e: React.PointerEvent) => {
+			if (!dragRef.current) return
+			const {current: raw, startW} = dragRef.current
+			try {
+				;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+			} catch {
+				/* already released */
+			}
+			dragRef.current = null
+			setDragging(false)
+			if (raw < SIDEBAR_WIDTH_MIN && onToggleCollapsed) {
+				// Keep remembered width; only flip collapsed
+				onWidthChange?.(startW)
+				onToggleCollapsed()
+				return
+			}
+			const finalWidth = clampSidebarWidth(raw)
+			onWidthChange?.(finalWidth)
+			onWidthCommit?.(finalWidth)
+		},
+		[onToggleCollapsed, onWidthChange, onWidthCommit],
+	)
+
+	if (collapsed) {
+		return (
+			<aside className="relative flex w-9 shrink-0 flex-col items-center gap-2 border-r border-[var(--xp-border)] bg-[var(--xp-panel)] py-2">
 				<button
 					type="button"
-					className={item(isHomePath(currentPath))}
+					className="rounded px-1.5 py-1 text-sm hover:bg-[var(--xp-hover)]"
+					title={`${L('expandSidebar')} (Ctrl+B)`}
+					aria-label={L('expandSidebar')}
+					onClick={() => onToggleCollapsed?.()}
+				>
+					›
+				</button>
+				<button
+					type="button"
+					className={`rounded px-1.5 py-1 text-sm ${
+						isHomePath(currentPath)
+							? 'bg-[var(--xp-select)]'
+							: 'hover:bg-[var(--xp-hover)]'
+					}`}
+					title={L('home')}
+					onClick={() => onNavigate(HOME_PATH)}
+				>
+					⌂
+				</button>
+			</aside>
+		)
+	}
+
+	return (
+		<aside
+			className={`relative flex shrink-0 flex-col gap-3 overflow-auto border-r border-[var(--xp-border)] bg-[var(--xp-panel)] p-2 text-sm ${
+				dragging ? 'select-none' : ''
+			}`}
+			style={{width: panelWidth}}
+		>
+			{onWidthChange ? (
+				<div
+					role="separator"
+					aria-orientation="vertical"
+					aria-label={L('resizeSidebar')}
+					title={L('resizeSidebar')}
+					className={`absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none ${
+						dragging ? 'bg-[var(--xp-fg)]/20' : 'hover:bg-[var(--xp-fg)]/10'
+					}`}
+					onPointerDown={onResizePointerDown}
+					onPointerMove={onResizePointerMove}
+					onPointerUp={onResizePointerUp}
+					onPointerCancel={onResizePointerUp}
+					onDoubleClick={() => {
+						onWidthChange(SIDEBAR_WIDTH_DEFAULT)
+						onWidthCommit?.(SIDEBAR_WIDTH_DEFAULT)
+					}}
+				/>
+			) : null}
+			<section className="flex items-center gap-1">
+				<button
+					type="button"
+					className={`${item(isHomePath(currentPath))} flex-1`}
 					onClick={() => onNavigate(HOME_PATH)}
 				>
 					{L('home')}
 				</button>
+				{onToggleCollapsed ? (
+					<button
+						type="button"
+						className="shrink-0 rounded px-1.5 py-1.5 text-sm opacity-60 hover:bg-[var(--xp-hover)] hover:opacity-100"
+						title={`${L('collapseSidebar')} (Ctrl+B)`}
+						aria-label={L('collapseSidebar')}
+						onClick={() => onToggleCollapsed()}
+					>
+						‹
+					</button>
+				) : null}
 			</section>
 			<section>
 				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
