@@ -1,16 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Fragment>
-        <DirectoryRef Id="TARGETDIR">
-            <Component Id="ExplorerContextMenuComponent" Guid="A7B3C91E-4F2D-4A8E-9C1B-6E5D8F0A2B4C">
-                <RegistryKey Root="HKCR" Key="Directory\shell\x-xp">
-                    <RegistryValue Type="string" Value="Mit x-xp öffnen" KeyPath="yes" />
-                    <RegistryValue Type="string" Name="Icon" Value="[INSTALLDIR]x-xp.exe,0" />
-                </RegistryKey>
-                <RegistryKey Root="HKCR" Key="Directory\shell\x-xp\command">
-                    <RegistryValue Type="string" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
-                </RegistryKey>
-            </Component>
-        </DirectoryRef>
-    </Fragment>
+	<Fragment>
+		<DirectoryRef Id="TARGETDIR">
+			<Component Id="ExplorerContextMenuComponent" Guid="A7B3C91E-4F2D-4A8E-9C1B-6E5D8F0A2B4C">
+				<!-- Directory context menu -->
+				<RegistryKey Root="HKCR" Key="Directory\shell\x-xp">
+					<RegistryValue Type="string" Value="Open with x-xp" KeyPath="yes" />
+					<RegistryValue Type="string" Name="Icon" Value="[INSTALLDIR]x-xp.exe,0" />
+				</RegistryKey>
+				<RegistryKey Root="HKCR" Key="Directory\shell\x-xp\command">
+					<RegistryValue Type="string" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
+				</RegistryKey>
+
+				<!-- Directory background -->
+				<RegistryKey Root="HKCR" Key="Directory\Background\shell\x-xp">
+					<RegistryValue Type="string" Value="Open with x-xp" />
+					<RegistryValue Type="string" Name="Icon" Value="[INSTALLDIR]x-xp.exe,0" />
+				</RegistryKey>
+				<RegistryKey Root="HKCR" Key="Directory\Background\shell\x-xp\command">
+					<RegistryValue Type="string" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%V&quot;" />
+				</RegistryKey>
+
+				<!-- Drive -->
+				<RegistryKey Root="HKCR" Key="Drive\shell\x-xp">
+					<RegistryValue Type="string" Value="Open with x-xp" />
+					<RegistryValue Type="string" Name="Icon" Value="[INSTALLDIR]x-xp.exe,0" />
+				</RegistryKey>
+				<RegistryKey Root="HKCR" Key="Drive\shell\x-xp\command">
+					<RegistryValue Type="string" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
+				</RegistryKey>
+			</Component>
+		</DirectoryRef>
+	</Fragment>
 </Wix>

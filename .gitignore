@@ -9,8 +9,11 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-verify
 dist-ssr
 *.local
+src-tauri/target
+src-tauri/target-check
 
 # Editor directories and files
 .vscode/*

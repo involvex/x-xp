@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sets x-xp as the classic Directory/Folder/Drive open handler.
+  Prior values should be backed up before install (Settings → Create restore point
+  + backup, or run scripts\install-backup.ps1 elevated). Backup lives under
+  HKLM\Software\Involvex\x-xp\Backup. Rollback: in-app Restore, uninstall, or
+  System Restore point "Before x-xp default explorer".
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<Fragment>
+		<DirectoryRef Id="TARGETDIR">
+			<Component Id="ExplorerDefaultHandlerComponent" Guid="B8C4D02F-5E3E-5B9F-0D2C-7F6E9A1B3C5D">
+				<RegistryKey Root="HKLM" Key="Software\Involvex\x-xp\Backup">
+					<RegistryValue Type="string" Name="InstalledAt" Value="[Date] [Time]" KeyPath="yes" />
+					<RegistryValue Type="string" Name="RestorePointHint" Value="Before x-xp default explorer" />
+					<RegistryValue Type="string" Name="InstallDir" Value="[INSTALLDIR]" />
+				</RegistryKey>
+
+				<RegistryKey Root="HKCR" Key="Directory\shell\open\command">
+					<RegistryValue Type="expandable" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
+				</RegistryKey>
+				<RegistryKey Root="HKCR" Key="Folder\shell\open\command">
+					<RegistryValue Type="expandable" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
+				</RegistryKey>
+				<RegistryKey Root="HKCR" Key="Drive\shell\open\command">
+					<RegistryValue Type="expandable" Value="&quot;[INSTALLDIR]x-xp.exe&quot; &quot;%1&quot;" />
+				</RegistryKey>
+			</Component>
+
+			<Component Id="ExplorerAppPathsComponent" Guid="C9D5E13A-6F4F-6C0A-1E3D-8A7F0B2C4D6E">
+				<RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\x-xp.exe">
+					<RegistryValue Type="string" Value="[INSTALLDIR]x-xp.exe" KeyPath="yes" />
+					<RegistryValue Type="string" Name="Path" Value="[INSTALLDIR]" />
+				</RegistryKey>
+				<Environment Id="XxpPath" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="no" />
+			</Component>
+		</DirectoryRef>
+	</Fragment>
+</Wix>

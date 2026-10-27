@@ -4,12 +4,16 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"prebuild": "bun run format && bun check && bun lint src --fix",
+		"prebuild": "bun run check && bun run lint",
 		"build": "tsc && vite build",
+		"check": "tsc --noEmit",
 		"dev": "vite",
-		"format": "prettier . --write",
+		"format": "prettier \"src/**/*.{ts,tsx,css}\" \"*.{html,json,md,ts}\" \"src-tauri/tauri.conf.json\" \"src-tauri/capabilities/**/*.json\" --write",
+		"format:check": "prettier \"src/**/*.{ts,tsx,css}\" \"*.{html,json,md,ts}\" \"src-tauri/tauri.conf.json\" \"src-tauri/capabilities/**/*.json\" --check",
+		"lint": "eslint src --fix",
 		"preview": "vite preview",
 		"tauri": "tauri",
+		"tauri:build": "tauri build",
 		"tauri:dev": "tauri dev"
 	},
 	"prettier": "@involvex/prettier-config",
@@ -26,6 +30,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@involvex/prettier-config": "^0.0.6",
+		"@tailwindcss/vite": "^4.3.3",
 		"@tauri-apps/cli": "^2",
 		"@types/react": "^19.1.8",
 		"@types/react-dom": "^19.1.6",
@@ -34,6 +39,7 @@
 		"globals": "^17.13.0",
 		"jiti": "^2.7.0",
 		"prettier": "^3.9.10",
+		"tailwindcss": "^4.3.3",
 		"typescript": "~6.0.3",
 		"typescript-eslint": "^8.72.1",
 		"vite": "^8.0.16"

@@ -12,9 +12,12 @@
 	"app": {
 		"windows": [
 			{
+				"label": "main",
 				"title": "x-xp",
-				"width": 800,
-				"height": 600
+				"width": 1200,
+				"height": 800,
+				"minWidth": 800,
+				"minHeight": 500
 			}
 		],
 		"security": {
@@ -31,10 +34,15 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
+		"resources": ["scripts/install-backup.ps1"],
 		"windows": {
 			"wix": {
-				"fragmentPaths": ["wix/context-menu.wxs"],
-				"componentRefs": ["ExplorerContextMenuComponent"]
+				"fragmentPaths": ["wix/context-menu.wxs", "wix/default-handler.wxs"],
+				"componentRefs": [
+					"ExplorerContextMenuComponent",
+					"ExplorerDefaultHandlerComponent",
+					"ExplorerAppPathsComponent"
+				]
 			}
 		}
 	}

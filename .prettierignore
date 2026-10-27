@@ -15,6 +15,11 @@ coverage
 .next
 .nuxt
 .cache
+src-tauri/target
+src-tauri/target-check
+src-tauri/gen
+src-tauri/Cargo.lock
+bun.lock
 
 # Version Control & Config
 .git

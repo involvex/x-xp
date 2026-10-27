@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+
+:root {
+	--xp-bg: #050505;
+	--xp-fg: #00ff66;
+	--xp-fg-dim: color-mix(in srgb, var(--xp-fg) 70%, transparent);
+	--xp-panel: #0a0f0c;
+	--xp-border: color-mix(in srgb, var(--xp-fg) 20%, transparent);
+	--xp-hover: color-mix(in srgb, var(--xp-fg) 12%, transparent);
+	--xp-select: color-mix(in srgb, var(--xp-fg) 22%, transparent);
+	--xp-danger: #ff4466;
+	color-scheme: dark;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+	height: 100%;
+	margin: 0;
+}
+
+body {
+	font-family:
+		'Cascadia Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+	background: var(--xp-bg);
+	color: var(--xp-fg);
+	overflow: hidden;
+}
+
+button,
+input {
+	font: inherit;
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--xp-fg) 35%, transparent);
+	border-radius: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}

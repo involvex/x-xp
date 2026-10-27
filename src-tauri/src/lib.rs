@@ -1,60 +1,133 @@
-use std::fs;
-use std::path::Path;
-use serde::Serialize;
+mod commands;
+
+use commands::fs::{
+	copy_entries, create_dir, create_file, delete_entries, format_modified, get_drives,
+	move_entries, open_path, read_dir, read_text_preview, rename_entry,
+};
+use commands::path::{
+	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path, resolve_path,
+	set_startup_path, StartupState,
+};
+use commands::registry::{
+	backup_folder_handlers, create_system_restore_point, get_registry_status,
+	restore_folder_handlers, set_as_default_folder_handler,
+};
+use commands::search::search_by_name;
 use std::env;
+use tauri::{
+	menu::{Menu, MenuItem},
+	tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+	Emitter, Manager, WindowEvent,
+};
+use tauri_plugin_window_state::{Builder as WindowStateBuilder, StateFlags};
 
-#[derive(Serialize)]
-pub struct FileEntry {
-    name: String,
-    path: String,
-    is_dir: bool,
-    size: u64,
-}
-
-#[tauri::command]
-async fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
-    let target_path = if path.is_empty() {
-        // Fallback auf Home oder Root, falls leer
-        dirs::home_dir().ok_or("Konnte Home-Verzeichnis nicht finden")?
-    } else {
-        Path::new(&path).to_owned()
-    };
-
-    let entries = fs::read_dir(target_path).map_err(|e| e.to_string())?;
-    let mut files = Vec::new();
-
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let metadata = entry.metadata().map_err(|e| e.to_string())?;
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let path = entry.path().to_string_lossy().into_owned();
-            
-            files.push(FileEntry {
-                name,
-                path,
-                is_dir: metadata.is_dir(),
-                size: if metadata.is_dir() { 0 } else { metadata.len() },
-            });
-        }
-    }
-
-    // Ordner zuerst sortieren, dann Dateien
-    files.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
-
-    Ok(files)
+fn show_main_window(app: &tauri::AppHandle) {
+	if let Some(window) = app.get_webview_window("main") {
+		let _ = window.show();
+		let _ = window.unminimize();
+		let _ = window.set_focus();
+	}
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() > 1 {
-        let target_path = &args[1];
-        println!("Gestartet mit Pfad aus Kontextmenü: {}", target_path);
-    }
-    if let Err(e) = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_dir])
-        .run(tauri::generate_context!())
-    {
-        eprintln!("Fehler beim Starten der Tauri-App: {}", e);
-    }
+	let args: Vec<String> = env::args().collect();
+	let startup = parse_startup_path(&args);
+
+	tauri::Builder::default()
+		.plugin(tauri_plugin_opener::init())
+		.plugin(tauri_plugin_store::Builder::new().build())
+		.plugin(
+			WindowStateBuilder::default()
+				.with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+				.build(),
+		)
+		.plugin(tauri_plugin_global_shortcut::Builder::new().build())
+		.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+			let path = parse_startup_path(&argv);
+			show_main_window(app);
+			if let Some(p) = path {
+				if let Some(window) = app.get_webview_window("main") {
+					let _ = window.emit("open-path", p);
+				}
+			}
+		}))
+		.manage(StartupState::new(startup.clone()))
+		.invoke_handler(tauri::generate_handler![
+			read_dir,
+			get_drives,
+			create_dir,
+			create_file,
+			rename_entry,
+			delete_entries,
+			copy_entries,
+			move_entries,
+			open_path,
+			read_text_preview,
+			format_modified,
+			get_home,
+			get_known_folders,
+			get_startup_path,
+			set_startup_path,
+			resolve_path,
+			parent_path,
+			search_by_name,
+			get_registry_status,
+			backup_folder_handlers,
+			set_as_default_folder_handler,
+			restore_folder_handlers,
+			create_system_restore_point,
+		])
+		.setup(move |app| {
+			let show_i = MenuItem::with_id(app, "show", "Show x-xp", true, None::<&str>)?;
+			let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+			let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+
+			let icon = app
+				.default_window_icon()
+				.cloned()
+				.expect("default window icon missing");
+
+			let _tray = TrayIconBuilder::with_id("main")
+				.icon(icon)
+				.menu(&menu)
+				.tooltip("x-xp")
+				.on_menu_event(|app, event| match event.id.as_ref() {
+					"show" => show_main_window(app),
+					"quit" => {
+						app.exit(0);
+					}
+					_ => {}
+				})
+				.on_tray_icon_event(|tray, event| {
+					if let TrayIconEvent::Click {
+						button: MouseButton::Left,
+						button_state: MouseButtonState::Up,
+						..
+					} = event
+					{
+						show_main_window(tray.app_handle());
+					}
+				})
+				.build(app)?;
+
+			if let Some(window) = app.get_webview_window("main") {
+				let window_for_event = window.clone();
+				window.on_window_event(move |event| {
+					if let WindowEvent::CloseRequested { api, .. } = event {
+						api.prevent_close();
+						let _ = window_for_event.hide();
+					}
+				});
+			}
+
+			if let Some(path) = startup {
+				if let Some(window) = app.get_webview_window("main") {
+					let _ = window.emit("open-path", path);
+				}
+			}
+			Ok(())
+		})
+		.run(tauri::generate_context!())
+		.expect("error while running x-xp");
 }
