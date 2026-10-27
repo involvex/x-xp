@@ -21,6 +21,7 @@ import {
 } from './lib/contextMenuConfig'
 import {applyGlobalHotkey} from './lib/hotkey'
 import {t, type Locale} from './lib/i18n'
+import {getNavDragPath, hasNavDrag} from './lib/navDnD'
 import {
 	displayPathTitle,
 	HOME_PATH,
@@ -30,9 +31,12 @@ import {
 } from './lib/paths'
 import {
 	applyQuickAccessPrefs,
+	applyUiAppearance,
+	clampUiZoom,
 	defaultDesktopPrefs,
 	defaultQuickAccessPrefs,
 	defaultSort,
+	defaultUiAppearance,
 	DUAL_SPLIT_DEFAULT,
 	loadAutoRefreshFolders,
 	loadBookmarks,
@@ -53,6 +57,7 @@ import {
 	loadSidebarWidth,
 	loadTagDefs,
 	loadTagMap,
+	loadUiAppearance,
 	loadViewMode,
 	PREVIEW_WIDTH_DEFAULT,
 	pushRecentPath,
@@ -73,9 +78,13 @@ import {
 	saveSidebarCollapsed,
 	saveSidebarWidth,
 	saveTagMap,
+	saveUiAppearance,
 	saveViewMode,
 	SIDEBAR_WIDTH_DEFAULT,
+	UI_ZOOM_DEFAULT,
+	UI_ZOOM_STEP,
 	type DesktopPrefs,
+	type UiAppearance,
 } from './lib/store'
 import {
 	cancelTransfer,
@@ -168,6 +177,10 @@ export default function App() {
 	const [previewWidth, setPreviewWidth] = useState(PREVIEW_WIDTH_DEFAULT)
 	const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH_DEFAULT)
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+	const [appearance, setAppearance] =
+		useState<UiAppearance>(defaultUiAppearance)
+	const [snapSide, setSnapSide] = useState<'left' | 'right' | null>(null)
+	const snapSideRef = useRef<'left' | 'right' | null>(null)
 	const [showHidden, setShowHidden] = useState(false)
 	const [showFolderSizes, setShowFolderSizes] = useState(false)
 	const [autoRefreshFolders, setAutoRefreshFolders] = useState(true)
@@ -353,6 +366,7 @@ export default function App() {
 					previewW,
 					sidebarW,
 					sidebarCollapsedOn,
+					uiAppearance,
 					hidden,
 					folderSizesOn,
 					autoRefreshOn,
@@ -378,6 +392,7 @@ export default function App() {
 					loadPreviewWidth(),
 					loadSidebarWidth(),
 					loadSidebarCollapsed(),
+					loadUiAppearance(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
 					loadAutoRefreshFolders(),
@@ -404,6 +419,8 @@ export default function App() {
 				setPreviewWidth(previewW)
 				setSidebarWidth(sidebarW)
 				setSidebarCollapsed(sidebarCollapsedOn)
+				setAppearance(uiAppearance)
+				applyUiAppearance(uiAppearance)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
 				setAutoRefreshFolders(autoRefreshOn)
@@ -648,6 +665,18 @@ export default function App() {
 				e.preventDefault()
 				toggleSidebarCollapsed()
 			}
+			if (e.ctrlKey && !typing && (e.key === '=' || e.key === '+')) {
+				e.preventDefault()
+				bumpZoom(UI_ZOOM_STEP)
+			}
+			if (e.ctrlKey && !typing && e.key === '-') {
+				e.preventDefault()
+				bumpZoom(-UI_ZOOM_STEP)
+			}
+			if (e.ctrlKey && !typing && e.key === '0') {
+				e.preventDefault()
+				resetZoom()
+			}
 			if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) {
 				e.preventDefault()
 				void runLastUndo()
@@ -711,6 +740,33 @@ export default function App() {
 		setSidebarCollapsed(v => {
 			const next = !v
 			void saveSidebarCollapsed(next)
+			return next
+		})
+	}
+
+	const changeAppearance = (next: UiAppearance) => {
+		setAppearance(next)
+		applyUiAppearance(next)
+		void saveUiAppearance(next)
+	}
+
+	const bumpZoom = (delta: number) => {
+		setAppearance(prev => {
+			const next = {
+				...prev,
+				zoom: clampUiZoom(prev.zoom + delta),
+			}
+			applyUiAppearance(next)
+			void saveUiAppearance(next)
+			return next
+		})
+	}
+
+	const resetZoom = () => {
+		setAppearance(prev => {
+			const next = {...prev, zoom: UI_ZOOM_DEFAULT}
+			applyUiAppearance(next)
+			void saveUiAppearance(next)
 			return next
 		})
 	}
@@ -927,6 +983,63 @@ export default function App() {
 		else navigateTab(folderPath)
 	}
 
+	useEffect(() => {
+		snapSideRef.current = snapSide
+	}, [snapSide])
+
+	useEffect(() => {
+		const onDragOver = (e: DragEvent) => {
+			if (!e.dataTransfer || !hasNavDrag(e.dataTransfer)) {
+				if (snapSideRef.current) setSnapSide(null)
+				return
+			}
+			const rect = dualPanesRef.current?.getBoundingClientRect()
+			if (!rect) return
+			if (
+				e.clientX < rect.left ||
+				e.clientX > rect.right ||
+				e.clientY < rect.top ||
+				e.clientY > rect.bottom
+			) {
+				setSnapSide(null)
+				return
+			}
+			e.preventDefault()
+			e.dataTransfer.dropEffect = 'copy'
+			const mid = rect.left + rect.width / 2
+			setSnapSide(e.clientX >= mid ? 'right' : 'left')
+		}
+		const onDrop = (e: DragEvent) => {
+			if (!e.dataTransfer || !hasNavDrag(e.dataTransfer)) {
+				setSnapSide(null)
+				return
+			}
+			const path = getNavDragPath(e.dataTransfer)
+			const side = snapSideRef.current
+			setSnapSide(null)
+			if (!path || !side) return
+			e.preventDefault()
+			e.stopPropagation()
+			if (side === 'right') {
+				setDualPane(true)
+				void saveDualPane(true)
+				setRightPath(path)
+				setActivePane('right')
+			} else {
+				navigateActive(path)
+			}
+		}
+		const onDragEnd = () => setSnapSide(null)
+		window.addEventListener('dragover', onDragOver, true)
+		window.addEventListener('drop', onDrop, true)
+		window.addEventListener('dragend', onDragEnd, true)
+		return () => {
+			window.removeEventListener('dragover', onDragOver, true)
+			window.removeEventListener('drop', onDrop, true)
+			window.removeEventListener('dragend', onDragEnd, true)
+		}
+	})
+
 	const toggleTagOnPaths = (paths: string[], tagId: string) => {
 		setTagMap(prev => {
 			const next: TagMap = {...prev}
@@ -1108,6 +1221,11 @@ export default function App() {
 		onDropComplete: bumpReload,
 		onClearSearch: () => setSearchQuery(''),
 		onPushUndo: pushUndoAction,
+		onRenameQuickAccess: (id: string, label: string) =>
+			void renameQuickAccess(id, label),
+		onReorderQuickAccess: (from: number, to: number) =>
+			void reorderQuickAccess(from, to),
+		onHideQuickAccess: (id: string) => void hideQuickAccess(id),
 	}
 
 	return (
@@ -1171,6 +1289,7 @@ export default function App() {
 					tagDefs={tagDefs}
 					activeTagFilter={tagFilter}
 					currentPath={currentPath}
+					menuSettings={menuSettings}
 					onNavigate={navigateActive}
 					onRemoveBookmark={id => void removeBookmark(id)}
 					onRenameBookmark={(id, label) => void renameBookmark(id, label)}
@@ -1178,7 +1297,19 @@ export default function App() {
 					onRenameQuickAccess={(id, label) => void renameQuickAccess(id, label)}
 					onReorderQuickAccess={(from, to) => void reorderQuickAccess(from, to)}
 					onHideQuickAccess={id => void hideQuickAccess(id)}
+					onAddBookmark={(p, label) => void addBookmarkAt(p, label)}
+					onOpenNewTab={p => {
+						const tab = newTab(p)
+						setTabs(prev => [...prev, tab])
+						setActiveTabId(tab.id)
+					}}
+					onOpenOtherPane={openInOtherPane}
+					onCustomizeMenu={() => {
+						setSettingsTab('menu')
+						setSettingsOpen(true)
+					}}
 					onTagFilter={setTagFilter}
+					onToast={showToast}
 					width={sidebarWidth}
 					collapsed={sidebarCollapsed}
 					onWidthChange={setSidebarWidth}
@@ -1191,8 +1322,30 @@ export default function App() {
 				<div className="flex min-w-0 flex-1">
 					<div
 						ref={dualPanesRef}
-						className="flex min-h-0 min-w-0 flex-1"
+						className="relative flex min-h-0 min-w-0 flex-1"
 					>
+						{snapSide ? (
+							<div className="pointer-events-none absolute inset-0 z-20 flex">
+								<div
+									className={`flex w-1/2 items-center justify-center border-r border-[var(--xp-fg)]/40 text-sm font-semibold ${
+										snapSide === 'left'
+											? 'bg-[var(--xp-fg)]/20'
+											: 'bg-[var(--xp-fg)]/5'
+									}`}
+								>
+									{t('snapOpenHere', locale)}
+								</div>
+								<div
+									className={`flex w-1/2 items-center justify-center text-sm font-semibold ${
+										snapSide === 'right'
+											? 'bg-[var(--xp-fg)]/20'
+											: 'bg-[var(--xp-fg)]/5'
+									}`}
+								>
+									{t('snapOpenSplit', locale)}
+								</div>
+							</div>
+						) : null}
 						<div
 							className={`flex min-h-0 min-w-0 flex-col ${dualPane ? '' : 'min-w-0 flex-1'}`}
 							style={
@@ -1275,6 +1428,8 @@ export default function App() {
 					onDesktopPrefs={changeDesktopPrefs}
 					autoRefreshFolders={autoRefreshFolders}
 					onAutoRefreshFolders={changeAutoRefreshFolders}
+					appearance={appearance}
+					onAppearance={changeAppearance}
 					onRestoreQuickAccess={() => void restoreQuickAccess()}
 					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}

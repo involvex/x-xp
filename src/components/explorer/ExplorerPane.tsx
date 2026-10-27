@@ -74,6 +74,9 @@ interface ExplorerPaneProps {
 	onDropComplete?: () => void
 	onClearSearch?: () => void
 	onPushUndo?: (action: UndoAction) => void
+	onRenameQuickAccess?: (id: string, label: string) => void
+	onReorderQuickAccess?: (fromIndex: number, toIndex: number) => void
+	onHideQuickAccess?: (id: string) => void
 	/** Increment while active to focus the address bar (Ctrl+L). */
 	focusAddressNonce?: number
 }
@@ -128,6 +131,9 @@ export function ExplorerPane({
 	onDropComplete,
 	onClearSearch,
 	onPushUndo,
+	onRenameQuickAccess,
+	onReorderQuickAccess,
+	onHideQuickAccess,
 	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
 	const addressRef = useRef<AddressBarHandle>(null)
@@ -869,7 +875,16 @@ export function ExplorerPane({
 					known={known}
 					bookmarks={bookmarks}
 					recent={recent}
+					menuSettings={menuSettings}
 					onNavigate={navigate}
+					onRenameQuickAccess={(id, label) => onRenameQuickAccess?.(id, label)}
+					onReorderQuickAccess={(from, to) => onReorderQuickAccess?.(from, to)}
+					onHideQuickAccess={id => onHideQuickAccess?.(id)}
+					onOpenNewTab={onOpenNewTab}
+					onOpenOtherPane={onOpenOtherPane}
+					onAddBookmark={onAddBookmark}
+					onCustomizeMenu={onCustomizeMenu}
+					onToast={onToast}
 				/>
 			) : atRecycle ? (
 				<RecycleBinView
@@ -1021,6 +1036,9 @@ export function ExplorerPane({
 							break
 						case 'openOtherPane':
 							if (menu?.path && menu.isDir) onOpenOtherPane(menu.path)
+							break
+						case 'hideQuickAccess':
+						case 'removeBookmark':
 							break
 						case 'addBookmark':
 							if (menu?.path && menu.isDir) {

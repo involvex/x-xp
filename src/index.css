@@ -9,11 +9,19 @@
 	--xp-hover: color-mix(in srgb, var(--xp-fg) 12%, transparent);
 	--xp-select: color-mix(in srgb, var(--xp-fg) 22%, transparent);
 	--xp-danger: #ff4466;
+	--xp-font-family:
+		'Cascadia Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+	--xp-font-size: 14px;
+	--xp-ui-zoom: 1;
 	color-scheme: dark;
 }
 
 * {
 	box-sizing: border-box;
+}
+
+html {
+	font-size: calc(var(--xp-font-size) * var(--xp-ui-zoom));
 }
 
 html,
@@ -24,8 +32,7 @@ body,
 }
 
 body {
-	font-family:
-		'Cascadia Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+	font-family: var(--xp-font-family);
 	background: var(--xp-bg);
 	color: var(--xp-fg);
 	overflow: hidden;

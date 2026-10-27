@@ -9,7 +9,14 @@ import {
 } from '../../lib/contextMenuConfig'
 import {eventToAccelerator} from '../../lib/hotkey'
 import {t, type Locale, type MessageKey} from '../../lib/i18n'
-import type {DesktopPrefs} from '../../lib/store'
+import type {DesktopPrefs, UiAppearance, UiFontStyle} from '../../lib/store'
+import {
+	UI_FONT_SIZE_MAX,
+	UI_FONT_SIZE_MIN,
+	UI_ZOOM_MAX,
+	UI_ZOOM_MIN,
+	UI_ZOOM_STEP,
+} from '../../lib/store'
 import type {RegistryBackupStatus} from '../../types/fs'
 
 type SettingsTab = 'general' | 'desktop' | 'menu'
@@ -23,6 +30,8 @@ interface SettingsModalProps {
 	onDesktopPrefs: (p: DesktopPrefs) => void
 	autoRefreshFolders: boolean
 	onAutoRefreshFolders: (v: boolean) => void
+	appearance: UiAppearance
+	onAppearance: (a: UiAppearance) => void
 	onRestoreQuickAccess: () => void
 	initialTab?: SettingsTab
 	onClose: () => void
@@ -38,6 +47,8 @@ export function SettingsModal({
 	onDesktopPrefs,
 	autoRefreshFolders,
 	onAutoRefreshFolders,
+	appearance,
+	onAppearance,
 	onRestoreQuickAccess,
 	initialTab = 'general',
 	onClose,
@@ -208,6 +219,64 @@ export function SettingsModal({
 									</span>
 								</span>
 							</label>
+
+							<section className="mb-6 space-y-3">
+								<h3 className="text-sm font-semibold">{L('fontStyle')}</h3>
+								<label className="block text-sm">
+									{L('fontStyle')}
+									<select
+										className="mt-1 w-full rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-2 py-1.5"
+										value={appearance.fontStyle}
+										onChange={e =>
+											onAppearance({
+												...appearance,
+												fontStyle: e.target.value as UiFontStyle,
+											})
+										}
+									>
+										<option value="mono">{L('fontMono')}</option>
+										<option value="sans">{L('fontSans')}</option>
+										<option value="serif">{L('fontSerif')}</option>
+									</select>
+								</label>
+								<label className="block text-sm">
+									{L('fontSize')} ({appearance.fontSize}px)
+									<input
+										type="range"
+										className="mt-1 w-full"
+										min={UI_FONT_SIZE_MIN}
+										max={UI_FONT_SIZE_MAX}
+										step={1}
+										value={appearance.fontSize}
+										onChange={e =>
+											onAppearance({
+												...appearance,
+												fontSize: Number(e.target.value),
+											})
+										}
+									/>
+								</label>
+								<label className="block text-sm">
+									{L('uiZoom')} ({Math.round(appearance.zoom * 100)}%)
+									<span className="mt-0.5 block text-xs opacity-70">
+										Ctrl + / − · Ctrl+0 {L('zoomReset')}
+									</span>
+									<input
+										type="range"
+										className="mt-1 w-full"
+										min={UI_ZOOM_MIN}
+										max={UI_ZOOM_MAX}
+										step={UI_ZOOM_STEP}
+										value={appearance.zoom}
+										onChange={e =>
+											onAppearance({
+												...appearance,
+												zoom: Number(e.target.value),
+											})
+										}
+									/>
+								</label>
+							</section>
 
 							<section className="mb-6 space-y-2">
 								<h3 className="text-sm font-semibold">{L('quickAccess')}</h3>

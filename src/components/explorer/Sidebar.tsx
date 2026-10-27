@@ -1,5 +1,11 @@
 import {useCallback, useRef, useState} from 'react'
+import {api, pathBasename} from '../../lib/api'
+import type {
+	BuiltinMenuAction,
+	ContextMenuSettings,
+} from '../../lib/contextMenuConfig'
 import {t, type Locale} from '../../lib/i18n'
+import {setNavDragData} from '../../lib/navDnD'
 import {
 	HOME_PATH,
 	isHomePath,
@@ -12,6 +18,12 @@ import {
 	SIDEBAR_WIDTH_MIN,
 } from '../../lib/store'
 import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
+import {
+	ContextMenu,
+	type ContextMenuState,
+	type SidebarMenuKind,
+} from './ContextMenu'
+import {PropertiesModal} from './PropertiesModal'
 
 const BM_DND = 'application/x-xp-bookmark-index'
 const QA_DND = 'application/x-xp-quickaccess-index'
@@ -24,6 +36,7 @@ interface SidebarProps {
 	tagDefs: TagDef[]
 	activeTagFilter: string | null
 	currentPath: string
+	menuSettings: ContextMenuSettings
 	onNavigate: (path: string) => void
 	onRemoveBookmark: (id: string) => void
 	onRenameBookmark: (id: string, label: string) => void
@@ -31,7 +44,12 @@ interface SidebarProps {
 	onRenameQuickAccess: (id: string, label: string) => void
 	onReorderQuickAccess: (fromIndex: number, toIndex: number) => void
 	onHideQuickAccess: (id: string) => void
+	onAddBookmark: (path: string, label: string) => void
+	onOpenNewTab: (path: string) => void
+	onOpenOtherPane: (path: string) => void
+	onCustomizeMenu: () => void
 	onTagFilter: (tagId: string | null) => void
+	onToast: (msg: string) => void
 	width?: number
 	collapsed?: boolean
 	onWidthChange?: (width: number) => void
@@ -42,6 +60,19 @@ interface SidebarProps {
 type EditTarget =
 	{kind: 'bookmark'; id: string} | {kind: 'quick'; id: string} | null
 
+function stubEntry(path: string, name: string): FileEntry {
+	return {
+		name,
+		path,
+		isDir: true,
+		size: 0,
+		extension: '',
+		modified: null,
+		readonly: false,
+		hidden: false,
+	}
+}
+
 export function Sidebar({
 	locale,
 	drives,
@@ -50,6 +81,7 @@ export function Sidebar({
 	tagDefs,
 	activeTagFilter,
 	currentPath,
+	menuSettings,
 	onNavigate,
 	onRemoveBookmark,
 	onRenameBookmark,
@@ -57,7 +89,12 @@ export function Sidebar({
 	onRenameQuickAccess,
 	onReorderQuickAccess,
 	onHideQuickAccess,
+	onAddBookmark,
+	onOpenNewTab,
+	onOpenOtherPane,
+	onCustomizeMenu,
 	onTagFilter,
+	onToast,
 	width = SIDEBAR_WIDTH_DEFAULT,
 	collapsed = false,
 	onWidthChange,
@@ -71,6 +108,8 @@ export function Sidebar({
 	const [bmDrop, setBmDrop] = useState<number | null>(null)
 	const [qaDrag, setQaDrag] = useState<number | null>(null)
 	const [qaDrop, setQaDrop] = useState<number | null>(null)
+	const [menu, setMenu] = useState<ContextMenuState | null>(null)
+	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
 
 	const item = (active: boolean) =>
 		`w-full text-left rounded px-2 py-1.5 text-sm truncate ${
@@ -94,6 +133,23 @@ export function Sidebar({
 
 	const isEditing = (kind: 'bookmark' | 'quick', id: string) =>
 		editing?.kind === kind && editing.id === id
+
+	const openCtx = (
+		e: React.MouseEvent,
+		path: string | null,
+		kind: SidebarMenuKind,
+		id?: string,
+	) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setMenu({
+			x: e.clientX,
+			y: e.clientY,
+			path,
+			isDir: true,
+			sidebar: {kind, id},
+		})
+	}
 
 	const panelWidth = clampSidebarWidth(width)
 	const [dragging, setDragging] = useState(false)
@@ -124,7 +180,6 @@ export function Sidebar({
 			if (!dragRef.current || !onWidthChange) return
 			const raw = dragRef.current.startW + (e.clientX - dragRef.current.startX)
 			dragRef.current.current = raw
-			// Past the min: hold at min until release (collapse) or bounce back
 			onWidthChange(
 				raw < SIDEBAR_WIDTH_MIN ? SIDEBAR_WIDTH_MIN : clampSidebarWidth(raw),
 			)
@@ -144,7 +199,6 @@ export function Sidebar({
 			dragRef.current = null
 			setDragging(false)
 			if (raw < SIDEBAR_WIDTH_MIN && onToggleCollapsed) {
-				// Keep remembered width; only flip collapsed
 				onWidthChange?.(startW)
 				onToggleCollapsed()
 				return
@@ -154,6 +208,106 @@ export function Sidebar({
 			onWidthCommit?.(finalWidth)
 		},
 		[onToggleCollapsed, onWidthChange, onWidthCommit],
+	)
+
+	const handleMenuAction = (action: BuiltinMenuAction) => {
+		const path = menu?.path
+		const kind = menu?.sidebar?.kind
+		const id = menu?.sidebar?.id
+		switch (action) {
+			case 'open':
+				if (path) onNavigate(path)
+				else if (kind === 'home') onNavigate(HOME_PATH)
+				else if (kind === 'recycle') onNavigate(RECYCLE_PATH)
+				break
+			case 'openSystem':
+				if (path) void api.openPath(path).catch(err => onToast(String(err)))
+				break
+			case 'openNewTab':
+				if (path) onOpenNewTab(path)
+				else if (kind === 'home') onOpenNewTab(HOME_PATH)
+				else if (kind === 'recycle') onOpenNewTab(RECYCLE_PATH)
+				break
+			case 'openNewWindow':
+				if (path)
+					void api.openInNewWindow(path).catch(err => onToast(String(err)))
+				break
+			case 'openOtherPane':
+				if (path) onOpenOtherPane(path)
+				else if (kind === 'home') onOpenOtherPane(HOME_PATH)
+				else if (kind === 'recycle') onOpenOtherPane(RECYCLE_PATH)
+				break
+			case 'addBookmark':
+				if (path) onAddBookmark(path, pathBasename(path) || path)
+				break
+			case 'copyPath':
+				if (path) {
+					void navigator.clipboard.writeText(path).then(
+						() => onToast(t('pathCopied', locale)),
+						err => onToast(String(err)),
+					)
+				}
+				break
+			case 'rename':
+				if (kind === 'quick' && id) {
+					const f = known.find(k => k.id === id)
+					if (f) startEdit('quick', id, f.label)
+				} else if (kind === 'bookmark' && id) {
+					const b = bookmarks.find(x => x.id === id)
+					if (b) startEdit('bookmark', id, b.label)
+				}
+				break
+			case 'hideQuickAccess':
+				if (id) onHideQuickAccess(id)
+				break
+			case 'removeBookmark':
+				if (id) onRemoveBookmark(id)
+				break
+			case 'properties':
+				if (path) {
+					setPropsEntry(stubEntry(path, pathBasename(path) || path))
+				}
+				break
+			case 'customizeMenu':
+				onCustomizeMenu()
+				break
+			default:
+				break
+		}
+		setMenu(null)
+	}
+
+	const menuNode = (
+		<>
+			<ContextMenu
+				locale={locale}
+				menu={menu}
+				canPaste={false}
+				dualPane
+				hasSelection={!!menu?.path}
+				isArchive={false}
+				tagDefs={tagDefs}
+				activeTagIds={[]}
+				menuSettings={menuSettings}
+				onClose={() => setMenu(null)}
+				onOpenWith={app => {
+					if (!menu?.path) return
+					void api
+						.openWith(menu.path, app.program, app.args)
+						.catch(err => onToast(String(err)))
+					setMenu(null)
+				}}
+				onToggleTag={() => undefined}
+				onAction={handleMenuAction}
+			/>
+			{propsEntry && (
+				<PropertiesModal
+					locale={locale}
+					entry={propsEntry}
+					onClose={() => setPropsEntry(null)}
+				/>
+			)}
+		</>
 	)
 
 	if (collapsed) {
@@ -177,9 +331,11 @@ export function Sidebar({
 					}`}
 					title={L('home')}
 					onClick={() => onNavigate(HOME_PATH)}
+					onContextMenu={e => openCtx(e, HOME_PATH, 'home')}
 				>
 					⌂
 				</button>
+				{menuNode}
 			</aside>
 		)
 	}
@@ -215,6 +371,9 @@ export function Sidebar({
 					type="button"
 					className={`${item(isHomePath(currentPath))} flex-1`}
 					onClick={() => onNavigate(HOME_PATH)}
+					onContextMenu={e => openCtx(e, HOME_PATH, 'home')}
+					draggable
+					onDragStart={e => setNavDragData(e.dataTransfer, HOME_PATH)}
 				>
 					{L('home')}
 				</button>
@@ -248,7 +407,8 @@ export function Sidebar({
 							} ${qaDrag === index ? 'opacity-40' : ''}`}
 							onDragStart={e => {
 								e.dataTransfer.setData(QA_DND, String(index))
-								e.dataTransfer.effectAllowed = 'move'
+								setNavDragData(e.dataTransfer, f.path)
+								e.dataTransfer.effectAllowed = 'copyMove'
 								setQaDrag(index)
 							}}
 							onDragEnd={() => {
@@ -256,7 +416,9 @@ export function Sidebar({
 								setQaDrop(null)
 							}}
 							onDragOver={e => {
+								if (![...e.dataTransfer.types].includes(QA_DND)) return
 								e.preventDefault()
+								e.stopPropagation()
 								e.dataTransfer.dropEffect = 'move'
 								setQaDrop(index)
 							}}
@@ -264,8 +426,10 @@ export function Sidebar({
 								setQaDrop(prev => (prev === index ? null : prev))
 							}}
 							onDrop={e => {
-								e.preventDefault()
 								const raw = e.dataTransfer.getData(QA_DND)
+								if (!raw) return
+								e.preventDefault()
+								e.stopPropagation()
 								const from = Number.parseInt(raw, 10)
 								setQaDrag(null)
 								setQaDrop(null)
@@ -273,6 +437,7 @@ export function Sidebar({
 									onReorderQuickAccess(from, index)
 								}
 							}}
+							onContextMenu={e => openCtx(e, f.path, 'quick', f.id)}
 						>
 							<span
 								className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
@@ -346,6 +511,9 @@ export function Sidebar({
 								currentPath.toLowerCase().startsWith(d.path.toLowerCase()),
 						)}
 						onClick={() => onNavigate(d.path)}
+						onContextMenu={e => openCtx(e, d.path, 'drive')}
+						draggable
+						onDragStart={e => setNavDragData(e.dataTransfer, d.path)}
 					>
 						{d.name}
 					</button>
@@ -354,6 +522,9 @@ export function Sidebar({
 					type="button"
 					className={item(isRecyclePath(currentPath))}
 					onClick={() => onNavigate(RECYCLE_PATH)}
+					onContextMenu={e => openCtx(e, RECYCLE_PATH, 'recycle')}
+					draggable
+					onDragStart={e => setNavDragData(e.dataTransfer, RECYCLE_PATH)}
 				>
 					{L('recycleBin')}
 				</button>
@@ -404,7 +575,8 @@ export function Sidebar({
 							} ${bmDrag === index ? 'opacity-40' : ''}`}
 							onDragStart={e => {
 								e.dataTransfer.setData(BM_DND, String(index))
-								e.dataTransfer.effectAllowed = 'move'
+								setNavDragData(e.dataTransfer, b.path)
+								e.dataTransfer.effectAllowed = 'copyMove'
 								setBmDrag(index)
 							}}
 							onDragEnd={() => {
@@ -412,7 +584,9 @@ export function Sidebar({
 								setBmDrop(null)
 							}}
 							onDragOver={e => {
+								if (![...e.dataTransfer.types].includes(BM_DND)) return
 								e.preventDefault()
+								e.stopPropagation()
 								e.dataTransfer.dropEffect = 'move'
 								setBmDrop(index)
 							}}
@@ -420,8 +594,10 @@ export function Sidebar({
 								setBmDrop(prev => (prev === index ? null : prev))
 							}}
 							onDrop={e => {
-								e.preventDefault()
 								const raw = e.dataTransfer.getData(BM_DND)
+								if (!raw) return
+								e.preventDefault()
+								e.stopPropagation()
 								const from = Number.parseInt(raw, 10)
 								setBmDrag(null)
 								setBmDrop(null)
@@ -429,6 +605,7 @@ export function Sidebar({
 									onReorderBookmarks(from, index)
 								}
 							}}
+							onContextMenu={e => openCtx(e, b.path, 'bookmark', b.id)}
 						>
 							<span
 								className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
@@ -488,6 +665,7 @@ export function Sidebar({
 					)
 				})}
 			</section>
+			{menuNode}
 		</aside>
 	)
 }

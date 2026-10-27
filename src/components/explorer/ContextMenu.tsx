@@ -2,18 +2,28 @@ import {useEffect, useMemo, useState} from 'react'
 import {
 	actionLabelKey,
 	matchesTarget,
+	SIDEBAR_MENU_ACTIONS,
 	type BuiltinMenuAction,
+	type ContextMenuItemConfig,
 	type ContextMenuSettings,
 	type OpenWithApp,
 } from '../../lib/contextMenuConfig'
 import {t, type Locale, type MessageKey} from '../../lib/i18n'
 import type {TagDef} from '../../types/fs'
 
+export type SidebarMenuKind =
+	'home' | 'quick' | 'drive' | 'recycle' | 'bookmark'
+
 export interface ContextMenuState {
 	x: number
 	y: number
 	path: string | null
 	isDir: boolean
+	/** When set, menu is filtered for sidebar / home shortcut items. */
+	sidebar?: {
+		kind: SidebarMenuKind
+		id?: string
+	}
 }
 
 interface ContextMenuProps {
@@ -34,11 +44,66 @@ interface ContextMenuProps {
 
 type FlyoutId = 'openWith' | 'tags' | null
 
+function buildSidebarRows(
+	visibleItems: ContextMenuItemConfig[],
+	kind: SidebarMenuKind,
+): ContextMenuItemConfig[] {
+	const base = visibleItems.filter(i => {
+		if (i.action === 'separator') return true
+		if (i.action.startsWith('ow:')) return true
+		return SIDEBAR_MENU_ACTIONS.has(i.action as BuiltinMenuAction)
+	})
+	const extras: ContextMenuItemConfig[] = []
+	if (kind === 'quick') {
+		extras.push(
+			{id: 'sb-rename', action: 'rename', enabled: true, when: 'dir'},
+			{
+				id: 'sb-hide-qa',
+				action: 'hideQuickAccess',
+				enabled: true,
+				when: 'dir',
+			},
+		)
+	} else if (kind === 'bookmark') {
+		extras.push(
+			{id: 'sb-rename', action: 'rename', enabled: true, when: 'dir'},
+			{
+				id: 'sb-remove-bm',
+				action: 'removeBookmark',
+				enabled: true,
+				when: 'dir',
+			},
+		)
+	}
+	if (extras.length === 0) return base
+	const withoutDup = base.filter(
+		i =>
+			i.action !== 'rename' &&
+			i.action !== 'hideQuickAccess' &&
+			i.action !== 'removeBookmark',
+	)
+	const customizeIdx = withoutDup.findIndex(i => i.action === 'customizeMenu')
+	const sep: ContextMenuItemConfig = {
+		id: 'sb-sep-extra',
+		action: 'separator',
+		enabled: true,
+		when: 'any',
+	}
+	if (customizeIdx >= 0) {
+		return [
+			...withoutDup.slice(0, customizeIdx),
+			sep,
+			...extras,
+			...withoutDup.slice(customizeIdx),
+		]
+	}
+	return [...withoutDup, sep, ...extras]
+}
+
 export function ContextMenu({
 	locale,
 	menu,
 	canPaste,
-	dualPane,
 	hasSelection,
 	isArchive,
 	tagDefs,
@@ -62,6 +127,17 @@ export function ContextMenu({
 		[menu, isArchive, hasSelection],
 	)
 
+	const visibleItems = useMemo(
+		() =>
+			menuSettings.items.filter(i => i.enabled && matchesTarget(i.when, ctx)),
+		[menuSettings.items, ctx],
+	)
+
+	const rows = useMemo(() => {
+		if (!menu?.sidebar) return visibleItems
+		return buildSidebarRows(visibleItems, menu.sidebar.kind)
+	}, [menu?.sidebar, visibleItems])
+
 	useEffect(() => {
 		setFlyout(null)
 	}, [menu?.x, menu?.y, menu?.path])
@@ -74,10 +150,6 @@ export function ContextMenu({
 	const nestedCls =
 		'block w-full px-3 py-1.5 pl-7 text-left text-sm hover:bg-[var(--xp-hover)]'
 
-	const visibleItems = menuSettings.items.filter(
-		i => i.enabled && matchesTarget(i.when, ctx),
-	)
-
 	const openWithApps = menuSettings.openWith.filter(a => {
 		if (!a.enabled) return false
 		if (!menu.path) return false
@@ -86,8 +158,10 @@ export function ContextMenu({
 		return !menu.isDir
 	})
 
+	const sidebar = menu.sidebar
+	const isSidebar = !!sidebar
+
 	const run = (action: BuiltinMenuAction) => {
-		if (action === 'openOtherPane' && !dualPane) return
 		if (action === 'paste' && !canPaste) return
 		onAction(action)
 	}
@@ -119,10 +193,10 @@ export function ContextMenu({
 				style={{left, top}}
 				role="menu"
 			>
-				{visibleItems.map((cfg, idx) => {
+				{rows.map((cfg, idx) => {
 					if (cfg.action === 'separator') {
-						const prev = visibleItems[idx - 1]
-						const next = visibleItems[idx + 1]
+						const prev = rows[idx - 1]
+						const next = rows[idx + 1]
 						if (!prev || !next || prev.action === 'separator') return null
 						return (
 							<hr
@@ -171,6 +245,7 @@ export function ContextMenu({
 					}
 
 					if (cfg.action === 'tags') {
+						if (isSidebar) return null
 						const open = flyout === 'tags'
 						return (
 							<div key={cfg.id}>
@@ -240,7 +315,29 @@ export function ContextMenu({
 					}
 
 					const action = cfg.action as BuiltinMenuAction
-					if (action === 'openOtherPane' && !dualPane) return null
+					if (
+						action === 'rename' &&
+						isSidebar &&
+						sidebar?.kind !== 'quick' &&
+						sidebar?.kind !== 'bookmark'
+					)
+						return null
+					if (action === 'hideQuickAccess' && sidebar?.kind !== 'quick')
+						return null
+					if (action === 'removeBookmark' && sidebar?.kind !== 'bookmark')
+						return null
+					if (
+						action === 'addBookmark' &&
+						isSidebar &&
+						(sidebar?.kind === 'bookmark' || sidebar?.kind === 'quick')
+					)
+						return null
+					if (
+						(action === 'properties' || action === 'openSystem') &&
+						isSidebar &&
+						(sidebar?.kind === 'home' || sidebar?.kind === 'recycle')
+					)
+						return null
 					const labelKey = actionLabelKey(action)
 					if (!labelKey) return null
 					const disabled = action === 'paste' && !canPaste

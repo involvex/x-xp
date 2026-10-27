@@ -21,6 +21,8 @@ export type BuiltinMenuAction =
 	| 'extractTo'
 	| 'compressZip'
 	| 'customizeMenu'
+	| 'hideQuickAccess'
+	| 'removeBookmark'
 	| 'separator'
 
 export type MenuTarget =
@@ -219,10 +221,34 @@ export function actionLabelKey(action: BuiltinMenuAction): string | null {
 			return 'compressZip'
 		case 'customizeMenu':
 			return 'customizeMenu'
+		case 'hideQuickAccess':
+			return 'hideQuickAccess'
+		case 'removeBookmark':
+			return 'removeBookmark'
 		default:
 			return null
 	}
 }
+
+/** Actions shown when right-clicking the sidebar / home shortcuts. */
+export const SIDEBAR_MENU_ACTIONS: ReadonlySet<
+	BuiltinMenuAction | 'separator'
+> = new Set([
+	'open',
+	'openSystem',
+	'openNewTab',
+	'openNewWindow',
+	'openOtherPane',
+	'addBookmark',
+	'openWith',
+	'copyPath',
+	'rename',
+	'hideQuickAccess',
+	'removeBookmark',
+	'properties',
+	'customizeMenu',
+	'separator',
+])
 
 /** Merge persisted menu with new default rows so upgrades pick up actions. */
 export function mergeContextMenuSettings(

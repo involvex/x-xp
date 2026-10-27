@@ -167,6 +167,96 @@ export async function saveSidebarCollapsed(value: boolean): Promise<void> {
 	await store.save()
 }
 
+export type UiFontStyle = 'mono' | 'sans' | 'serif'
+
+export const FONT_STYLE_STACKS: Record<UiFontStyle, string> = {
+	mono: "'Cascadia Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace",
+	sans: "system-ui, 'Segoe UI', Roboto, sans-serif",
+	serif: "Georgia, 'Times New Roman', serif",
+}
+
+export const UI_FONT_SIZE_DEFAULT = 14
+export const UI_FONT_SIZE_MIN = 11
+export const UI_FONT_SIZE_MAX = 20
+export const UI_ZOOM_DEFAULT = 1
+export const UI_ZOOM_MIN = 0.75
+export const UI_ZOOM_MAX = 1.5
+export const UI_ZOOM_STEP = 0.1
+
+export interface UiAppearance {
+	fontStyle: UiFontStyle
+	fontSize: number
+	zoom: number
+}
+
+export function defaultUiAppearance(): UiAppearance {
+	return {
+		fontStyle: 'mono',
+		fontSize: UI_FONT_SIZE_DEFAULT,
+		zoom: UI_ZOOM_DEFAULT,
+	}
+}
+
+export function clampFontSize(size: number): number {
+	if (!Number.isFinite(size)) return UI_FONT_SIZE_DEFAULT
+	return Math.min(
+		UI_FONT_SIZE_MAX,
+		Math.max(UI_FONT_SIZE_MIN, Math.round(size)),
+	)
+}
+
+export function clampUiZoom(zoom: number): number {
+	if (!Number.isFinite(zoom)) return UI_ZOOM_DEFAULT
+	const stepped = Math.round(zoom / UI_ZOOM_STEP) * UI_ZOOM_STEP
+	return Math.min(
+		UI_ZOOM_MAX,
+		Math.max(UI_ZOOM_MIN, Number(stepped.toFixed(2))),
+	)
+}
+
+export function applyUiAppearance(appearance: UiAppearance): void {
+	const root = document.documentElement
+	root.style.setProperty(
+		'--xp-font-family',
+		FONT_STYLE_STACKS[appearance.fontStyle] ?? FONT_STYLE_STACKS.mono,
+	)
+	root.style.setProperty(
+		'--xp-font-size',
+		`${clampFontSize(appearance.fontSize)}px`,
+	)
+	root.style.setProperty('--xp-ui-zoom', String(clampUiZoom(appearance.zoom)))
+}
+
+export async function loadUiAppearance(): Promise<UiAppearance> {
+	const raw = await store.get<Partial<UiAppearance>>('uiAppearance')
+	const base = defaultUiAppearance()
+	if (!raw || typeof raw !== 'object') return base
+	const fontStyle =
+		raw.fontStyle === 'sans' ||
+		raw.fontStyle === 'serif' ||
+		raw.fontStyle === 'mono'
+			? raw.fontStyle
+			: base.fontStyle
+	return {
+		fontStyle,
+		fontSize: clampFontSize(
+			typeof raw.fontSize === 'number' ? raw.fontSize : base.fontSize,
+		),
+		zoom: clampUiZoom(typeof raw.zoom === 'number' ? raw.zoom : base.zoom),
+	}
+}
+
+export async function saveUiAppearance(
+	appearance: UiAppearance,
+): Promise<void> {
+	await store.set('uiAppearance', {
+		fontStyle: appearance.fontStyle,
+		fontSize: clampFontSize(appearance.fontSize),
+		zoom: clampUiZoom(appearance.zoom),
+	})
+	await store.save()
+}
+
 export async function loadShowHidden(): Promise<boolean> {
 	return (await store.get<boolean>('showHidden')) ?? false
 }
