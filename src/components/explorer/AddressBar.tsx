@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react'
 import {splitPath} from '../../lib/api'
+import {HOME_PATH, isHomePath} from '../../lib/paths'
 
 interface AddressBarProps {
 	path: string
@@ -9,23 +10,11 @@ interface AddressBarProps {
 export function AddressBar({path, onNavigate}: AddressBarProps) {
 	const [editing, setEditing] = useState(false)
 	const [draft, setDraft] = useState(path)
-	const {root, parts} = splitPath(path)
 
 	useEffect(() => {
 		setDraft(path)
 		setEditing(false)
 	}, [path])
-
-	const crumbPaths: {label: string; path: string}[] = []
-	let acc = root
-	crumbPaths.push({label: root.replace(/[\\/]$/, '') || root, path: root})
-	for (const part of parts) {
-		acc =
-			acc.endsWith('\\') || acc.endsWith('/')
-				? `${acc}${part}`
-				: `${acc}\\${part}`
-		crumbPaths.push({label: part, path: acc})
-	}
 
 	if (editing) {
 		return (
@@ -54,12 +43,50 @@ export function AddressBar({path, onNavigate}: AddressBarProps) {
 		)
 	}
 
+	if (isHomePath(path)) {
+		return (
+			<div
+				className="flex flex-wrap items-center gap-1 border-b border-[var(--xp-border)] px-3 py-2 text-sm"
+				onDoubleClick={() => setEditing(true)}
+				title="Double-click to edit path"
+			>
+				<button
+					type="button"
+					className="rounded px-1.5 py-0.5 hover:bg-[var(--xp-hover)]"
+					onClick={() => onNavigate(HOME_PATH)}
+				>
+					Home
+				</button>
+			</div>
+		)
+	}
+
+	const {root, parts} = splitPath(path)
+	const crumbPaths: {label: string; path: string}[] = []
+	let acc = root
+	crumbPaths.push({label: root.replace(/[\\/]$/, '') || root, path: root})
+	for (const part of parts) {
+		acc =
+			acc.endsWith('\\') || acc.endsWith('/')
+				? `${acc}${part}`
+				: `${acc}\\${part}`
+		crumbPaths.push({label: part, path: acc})
+	}
+
 	return (
 		<div
 			className="flex flex-wrap items-center gap-1 border-b border-[var(--xp-border)] px-3 py-2 text-sm"
 			onDoubleClick={() => setEditing(true)}
 			title="Double-click to edit path"
 		>
+			<button
+				type="button"
+				className="rounded px-1.5 py-0.5 opacity-60 hover:bg-[var(--xp-hover)] hover:opacity-100"
+				onClick={() => onNavigate(HOME_PATH)}
+			>
+				Home
+			</button>
+			<span className="opacity-40">›</span>
 			{crumbPaths.map((c, i) => (
 				<span
 					key={c.path}

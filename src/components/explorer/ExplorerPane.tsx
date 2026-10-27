@@ -1,16 +1,21 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {api, pathBasename, pathJoin} from '../../lib/api'
-import type {Locale} from '../../lib/i18n'
+import {t, type Locale} from '../../lib/i18n'
+import {isHomePath} from '../../lib/paths'
 import type {
+	Bookmark,
 	ClipboardState,
 	FileEntry,
+	KnownFolder,
 	SortKey,
 	SortState,
 	ViewMode,
 } from '../../types/fs'
 import {AddressBar} from './AddressBar'
 import {ContextMenu, type ContextMenuState} from './ContextMenu'
-import {FileList} from './FileList'
+import {DND_MIME, FileList} from './FileList'
+import {HomePage} from './HomePage'
+import {PropertiesModal} from './PropertiesModal'
 import {StatusBar} from './StatusBar'
 
 interface ExplorerPaneProps {
@@ -20,12 +25,23 @@ interface ExplorerPaneProps {
 	clipboard: ClipboardState | null
 	searchQuery: string
 	active: boolean
+	reloadToken: number
+	showHidden: boolean
+	dualPane: boolean
+	drives: FileEntry[]
+	known: KnownFolder[]
+	bookmarks: Bookmark[]
+	recent: string[]
 	onPathChange: (path: string) => void
 	onClipboard: (clip: ClipboardState | null) => void
 	onFocus: () => void
 	onToast: (msg: string) => void
 	onPreviewEntry: (entry: FileEntry | null) => void
 	onAddBookmark: (path: string, label: string) => void
+	onOpenNewTab: (path: string) => void
+	onOpenOtherPane: (path: string) => void
+	onGoUp: () => void
+	onDropComplete?: () => void
 }
 
 function sortEntries(entries: FileEntry[], sort: SortState): FileEntry[] {
@@ -42,6 +58,19 @@ function sortEntries(entries: FileEntry[], sort: SortState): FileEntry[] {
 	})
 }
 
+function parseDragPaths(e: React.DragEvent): string[] {
+	const raw = e.dataTransfer.getData(DND_MIME)
+	if (!raw) return []
+	try {
+		const parsed = JSON.parse(raw) as unknown
+		return Array.isArray(parsed)
+			? parsed.filter((p): p is string => typeof p === 'string')
+			: []
+	} catch {
+		return []
+	}
+}
+
 export function ExplorerPane({
 	locale,
 	path,
@@ -49,12 +78,23 @@ export function ExplorerPane({
 	clipboard,
 	searchQuery,
 	active,
+	reloadToken,
+	showHidden,
+	dualPane,
+	drives,
+	known,
+	bookmarks,
+	recent,
 	onPathChange,
 	onClipboard,
 	onFocus,
 	onToast,
 	onPreviewEntry,
 	onAddBookmark,
+	onOpenNewTab,
+	onOpenOtherPane,
+	onGoUp,
+	onDropComplete,
 }: ExplorerPaneProps) {
 	const [entries, setEntries] = useState<FileEntry[]>([])
 	const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -66,6 +106,9 @@ export function ExplorerPane({
 	const [truncated, setTruncated] = useState(false)
 	const [loading, setLoading] = useState(false)
 	const [sort, setSort] = useState<SortState>({key: 'name', dir: 'asc'})
+	const [dropTarget, setDropTarget] = useState<string | null>(null)
+	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
+	const atHome = isHomePath(path)
 
 	const toggleSort = (key: SortKey) => {
 		setSort(prev =>
@@ -77,6 +120,14 @@ export function ExplorerPane({
 
 	const load = useCallback(
 		async (p: string) => {
+			if (isHomePath(p)) {
+				setEntries([])
+				setSelected(new Set())
+				setSearchEntries(null)
+				setTruncated(false)
+				setLoading(false)
+				return
+			}
 			setLoading(true)
 			try {
 				const res = await api.readDir(p)
@@ -95,10 +146,10 @@ export function ExplorerPane({
 
 	useEffect(() => {
 		void load(path)
-	}, [path, load])
+	}, [path, load, reloadToken])
 
 	useEffect(() => {
-		if (!searchQuery.trim()) {
+		if (atHome || !searchQuery.trim()) {
 			setSearchEntries(null)
 			setTruncated(false)
 			return
@@ -113,12 +164,13 @@ export function ExplorerPane({
 				.catch(e => onToast(String(e)))
 		}, 250)
 		return () => window.clearTimeout(handle)
-	}, [searchQuery, path, onToast])
+	}, [searchQuery, path, onToast, atHome])
 
-	const visible = useMemo(
-		() => sortEntries(searchEntries ?? entries, sort),
-		[searchEntries, entries, sort],
-	)
+	const visible = useMemo(() => {
+		const base = searchEntries ?? entries
+		const filtered = showHidden ? base : base.filter(e => !e.hidden)
+		return sortEntries(filtered, sort)
+	}, [searchEntries, entries, sort, showHidden])
 
 	const selectedEntries = useMemo(
 		() => visible.filter(e => selected.has(e.path)),
@@ -176,7 +228,7 @@ export function ExplorerPane({
 	const doDelete = async () => {
 		const paths = [...selected]
 		if (paths.length === 0) return
-		if (!window.confirm('Move selected items to the Recycle Bin?')) return
+		if (!window.confirm(t('confirmDelete', locale))) return
 		try {
 			await api.deleteEntries(paths)
 			await load(path)
@@ -186,7 +238,7 @@ export function ExplorerPane({
 	}
 
 	const doPaste = async () => {
-		if (!clipboard || clipboard.paths.length === 0) return
+		if (atHome || !clipboard || clipboard.paths.length === 0) return
 		try {
 			if (clipboard.mode === 'copy') {
 				await api.copyEntries(clipboard.paths, path)
@@ -201,10 +253,23 @@ export function ExplorerPane({
 	}
 
 	const doNewFolder = async () => {
+		if (atHome) return
 		const name = window.prompt('Folder name', 'New folder')
 		if (!name) return
 		try {
 			await api.createDir(pathJoin(path, name))
+			await load(path)
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
+	const doNewFile = async () => {
+		if (atHome) return
+		const name = window.prompt('File name', 'New file.txt')
+		if (!name) return
+		try {
+			await api.createFile(pathJoin(path, name))
 			await load(path)
 		} catch (e) {
 			onToast(String(e))
@@ -233,6 +298,70 @@ export function ExplorerPane({
 		}
 	}
 
+	const transferTo = async (
+		sources: string[],
+		destDir: string,
+		copy: boolean,
+	) => {
+		const filtered = sources.filter(s => {
+			const destNorm = destDir.replace(/[\\/]+$/, '').toLowerCase()
+			const srcNorm = s.replace(/[\\/]+$/, '').toLowerCase()
+			return srcNorm !== destNorm && !destNorm.startsWith(srcNorm + '\\')
+		})
+		if (filtered.length === 0) return
+		try {
+			if (copy) await api.copyEntries(filtered, destDir)
+			else await api.moveEntries(filtered, destDir)
+			await load(path)
+			onDropComplete?.()
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
+	const onDragStart = (entry: FileEntry, e: React.DragEvent) => {
+		const paths = selected.has(entry.path) ? [...selected] : [entry.path]
+		e.dataTransfer.setData(DND_MIME, JSON.stringify(paths))
+		e.dataTransfer.effectAllowed = 'copyMove'
+	}
+
+	const onDragOverEntry = (entry: FileEntry, e: React.DragEvent) => {
+		if (!entry.isDir) return
+		e.preventDefault()
+		e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move'
+		setDropTarget(entry.path)
+	}
+
+	const onDragLeaveEntry = (entry: FileEntry) => {
+		setDropTarget(prev => (prev === entry.path ? null : prev))
+	}
+
+	const onDropOnEntry = (entry: FileEntry, e: React.DragEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setDropTarget(null)
+		if (!entry.isDir) return
+		const sources = parseDragPaths(e)
+		if (sources.length === 0) return
+		void transferTo(sources, entry.path, e.ctrlKey || e.altKey)
+	}
+
+	const onDragOverPane = (e: React.DragEvent) => {
+		if (atHome) return
+		e.preventDefault()
+		e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move'
+		setDropTarget(path)
+	}
+
+	const onDropOnPane = (e: React.DragEvent) => {
+		e.preventDefault()
+		setDropTarget(null)
+		if (atHome) return
+		const sources = parseDragPaths(e)
+		if (sources.length === 0) return
+		void transferTo(sources, path, e.ctrlKey || e.altKey)
+	}
+
 	useEffect(() => {
 		if (!active) return
 		const onKey = (e: KeyboardEvent) => {
@@ -243,27 +372,27 @@ export function ExplorerPane({
 				e.preventDefault()
 				void load(path)
 			}
-			if (e.key === 'Delete') {
+			if (e.key === 'Delete' && !atHome) {
 				e.preventDefault()
 				void doDelete()
 			}
-			if (e.key === 'F2') {
+			if (e.key === 'F2' && !atHome) {
 				e.preventDefault()
 				startRename()
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'a' && !atHome) {
 				e.preventDefault()
 				setSelected(new Set(visible.map(x => x.path)))
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'c' && !atHome) {
 				e.preventDefault()
 				onClipboard({mode: 'copy', paths: [...selected]})
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'x') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'x' && !atHome) {
 				e.preventDefault()
 				onClipboard({mode: 'cut', paths: [...selected]})
 			}
-			if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+			if (e.ctrlKey && e.key.toLowerCase() === 'v' && !atHome) {
 				e.preventDefault()
 				void doPaste()
 			}
@@ -273,64 +402,87 @@ export function ExplorerPane({
 			}
 			if (e.key === 'Backspace' && e.altKey) {
 				e.preventDefault()
+				onGoUp()
 			}
 		}
 		window.addEventListener('keydown', onKey)
 		return () => window.removeEventListener('keydown', onKey)
-	}, [active, path, selected, selectedEntries, visible, clipboard])
+	})
 
 	return (
 		<div
-			className={`flex min-w-0 flex-1 flex-col ${active ? '' : 'opacity-80'}`}
+			className={`flex min-w-0 flex-1 flex-col ${active ? '' : 'opacity-80'} ${dropTarget === path ? 'ring-1 ring-inset ring-[var(--xp-fg)]' : ''}`}
 			onClick={onFocus}
 			onContextMenu={e => {
+				if (atHome) return
 				if ((e.target as HTMLElement).closest('li,button')) return
 				e.preventDefault()
 				setMenu({x: e.clientX, y: e.clientY, path: null, isDir: false})
 			}}
+			onDragOver={onDragOverPane}
+			onDrop={onDropOnPane}
 		>
 			<AddressBar
 				path={path}
 				onNavigate={navigate}
 			/>
 			{loading && <div className="px-3 py-1 text-xs opacity-50">Loading…</div>}
-			<FileList
-				locale={locale}
-				entries={visible}
-				selected={selected}
-				viewMode={viewMode}
-				sort={sort}
-				renaming={renaming}
-				renameValue={renameValue}
-				onSort={toggleSort}
-				onRenameValue={setRenameValue}
-				onCommitRename={() => void commitRename()}
-				onCancelRename={() => setRenaming(null)}
-				onClick={onClick}
-				onDoubleClick={entry => void openEntry(entry)}
-				onContextMenu={(entry, e) => {
-					e.preventDefault()
-					if (!selected.has(entry.path)) setSelected(new Set([entry.path]))
-					setMenu({
-						x: e.clientX,
-						y: e.clientY,
-						path: entry.path,
-						isDir: entry.isDir,
-					})
-				}}
-			/>
+			{atHome ? (
+				<HomePage
+					locale={locale}
+					drives={drives}
+					known={known}
+					bookmarks={bookmarks}
+					recent={recent}
+					onNavigate={navigate}
+				/>
+			) : (
+				<FileList
+					locale={locale}
+					entries={visible}
+					selected={selected}
+					viewMode={viewMode}
+					sort={sort}
+					renaming={renaming}
+					renameValue={renameValue}
+					dropTarget={dropTarget}
+					onSort={toggleSort}
+					onRenameValue={setRenameValue}
+					onCommitRename={() => void commitRename()}
+					onCancelRename={() => setRenaming(null)}
+					onClick={onClick}
+					onDoubleClick={entry => void openEntry(entry)}
+					onContextMenu={(entry, e) => {
+						e.preventDefault()
+						if (!selected.has(entry.path)) setSelected(new Set([entry.path]))
+						setMenu({
+							x: e.clientX,
+							y: e.clientY,
+							path: entry.path,
+							isDir: entry.isDir,
+						})
+					}}
+					onDragStart={onDragStart}
+					onDragOverEntry={onDragOverEntry}
+					onDragLeaveEntry={onDragLeaveEntry}
+					onDropOnEntry={onDropOnEntry}
+					onDragOverPane={onDragOverPane}
+					onDropOnPane={onDropOnPane}
+				/>
+			)}
 			<StatusBar
 				locale={locale}
-				itemCount={visible.length}
+				itemCount={atHome ? 0 : visible.length}
 				selectedCount={selected.size}
 				path={path}
-				searchActive={!!searchQuery.trim()}
+				searchActive={!!searchQuery.trim() && !atHome}
 				truncated={truncated}
 			/>
 			<ContextMenu
 				locale={locale}
 				menu={menu}
-				canPaste={!!clipboard && clipboard.paths.length > 0}
+				canPaste={!!clipboard && clipboard.paths.length > 0 && !atHome}
+				dualPane={dualPane}
 				onClose={() => setMenu(null)}
 				onOpen={() => {
 					const entry = visible.find(x => x.path === menu?.path)
@@ -340,6 +492,14 @@ export function ExplorerPane({
 				onOpenSystem={() => {
 					if (menu?.path)
 						void api.openPath(menu.path).catch(e => onToast(String(e)))
+					setMenu(null)
+				}}
+				onOpenNewTab={() => {
+					if (menu?.path && menu.isDir) onOpenNewTab(menu.path)
+					setMenu(null)
+				}}
+				onOpenOtherPane={() => {
+					if (menu?.path && menu.isDir) onOpenOtherPane(menu.path)
 					setMenu(null)
 				}}
 				onCopy={() => {
@@ -363,6 +523,24 @@ export function ExplorerPane({
 					void doNewFolder()
 					setMenu(null)
 				}}
+				onNewFile={() => {
+					void doNewFile()
+					setMenu(null)
+				}}
+				onCopyPath={() => {
+					if (menu?.path) {
+						void navigator.clipboard.writeText(menu.path).then(
+							() => onToast(t('pathCopied', locale)),
+							e => onToast(String(e)),
+						)
+					}
+					setMenu(null)
+				}}
+				onProperties={() => {
+					const entry = visible.find(x => x.path === menu?.path)
+					if (entry) setPropsEntry(entry)
+					setMenu(null)
+				}}
 				onAddBookmark={() => {
 					if (menu?.path && menu.isDir) {
 						onAddBookmark(menu.path, pathBasename(menu.path) || menu.path)
@@ -370,16 +548,13 @@ export function ExplorerPane({
 					setMenu(null)
 				}}
 			/>
-			{/* expose helpers via data attributes for parent — unused */}
-			<span
-				className="hidden"
-				data-basename={pathBasename(path)}
-			/>
+			{propsEntry && (
+				<PropertiesModal
+					locale={locale}
+					entry={propsEntry}
+					onClose={() => setPropsEntry(null)}
+				/>
+			)}
 		</div>
 	)
-}
-
-export type ExplorerPaneHandle = {
-	refresh: () => void
-	newFolder: () => void
 }

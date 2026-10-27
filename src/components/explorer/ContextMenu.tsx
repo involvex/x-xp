@@ -11,14 +11,20 @@ interface ContextMenuProps {
 	locale: Locale
 	menu: ContextMenuState | null
 	canPaste: boolean
+	dualPane: boolean
 	onOpen: () => void
 	onOpenSystem: () => void
+	onOpenNewTab: () => void
+	onOpenOtherPane: () => void
 	onCopy: () => void
 	onCut: () => void
 	onPaste: () => void
 	onRename: () => void
 	onDelete: () => void
 	onNewFolder: () => void
+	onNewFile: () => void
+	onCopyPath: () => void
+	onProperties: () => void
 	onAddBookmark: () => void
 	onClose: () => void
 }
@@ -27,14 +33,20 @@ export function ContextMenu({
 	locale,
 	menu,
 	canPaste,
+	dualPane,
 	onOpen,
 	onOpenSystem,
+	onOpenNewTab,
+	onOpenOtherPane,
 	onCopy,
 	onCut,
 	onPaste,
 	onRename,
 	onDelete,
 	onNewFolder,
+	onNewFile,
+	onCopyPath,
+	onProperties,
 	onAddBookmark,
 	onClose,
 }: ContextMenuProps) {
@@ -54,27 +66,79 @@ export function ContextMenu({
 				}}
 			/>
 			<div
-				className="fixed z-50 min-w-[180px] rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl"
+				className="fixed z-50 min-w-[200px] rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] py-1 shadow-xl"
 				style={{left: menu.x, top: menu.y}}
 			>
 				{menu.path && (
 					<>
-						<button type="button" className={item} onClick={onOpen}>
+						<button
+							type="button"
+							className={item}
+							onClick={onOpen}
+						>
 							{L('open')}
 						</button>
-						<button type="button" className={item} onClick={onOpenSystem}>
+						<button
+							type="button"
+							className={item}
+							onClick={onOpenSystem}
+						>
 							{L('openSystem')}
 						</button>
 						{menu.isDir && (
-							<button type="button" className={item} onClick={onAddBookmark}>
-								{L('addBookmark')}
-							</button>
+							<>
+								<button
+									type="button"
+									className={item}
+									onClick={onOpenNewTab}
+								>
+									{L('openNewTab')}
+								</button>
+								{dualPane && (
+									<button
+										type="button"
+										className={item}
+										onClick={onOpenOtherPane}
+									>
+										{L('openOtherPane')}
+									</button>
+								)}
+								<button
+									type="button"
+									className={item}
+									onClick={onAddBookmark}
+								>
+									{L('addBookmark')}
+								</button>
+							</>
 						)}
+						<button
+							type="button"
+							className={item}
+							onClick={onCopyPath}
+						>
+							{L('copyPath')}
+						</button>
+						<button
+							type="button"
+							className={item}
+							onClick={onProperties}
+						>
+							{L('properties')}
+						</button>
 						<hr className="my-1 border-[var(--xp-border)]" />
-						<button type="button" className={item} onClick={onCopy}>
+						<button
+							type="button"
+							className={item}
+							onClick={onCopy}
+						>
 							{L('copy')}
 						</button>
-						<button type="button" className={item} onClick={onCut}>
+						<button
+							type="button"
+							className={item}
+							onClick={onCut}
+						>
 							{L('cut')}
 						</button>
 					</>
@@ -87,12 +151,27 @@ export function ContextMenu({
 				>
 					{L('paste')}
 				</button>
-				<button type="button" className={item} onClick={onNewFolder}>
+				<button
+					type="button"
+					className={item}
+					onClick={onNewFolder}
+				>
 					{L('newFolder')}
+				</button>
+				<button
+					type="button"
+					className={item}
+					onClick={onNewFile}
+				>
+					{L('newFile')}
 				</button>
 				{menu.path && (
 					<>
-						<button type="button" className={item} onClick={onRename}>
+						<button
+							type="button"
+							className={item}
+							onClick={onRename}
+						>
 							{L('rename')}
 						</button>
 						<button

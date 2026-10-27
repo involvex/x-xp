@@ -1,4 +1,5 @@
 import {t, type Locale} from '../../lib/i18n'
+import {HOME_PATH, isHomePath} from '../../lib/paths'
 import type {Bookmark, FileEntry, KnownFolder} from '../../types/fs'
 
 interface SidebarProps {
@@ -29,6 +30,15 @@ export function Sidebar({
 	return (
 		<aside className="flex w-52 shrink-0 flex-col gap-3 overflow-auto border-r border-[var(--xp-border)] bg-[var(--xp-panel)] p-2 text-sm">
 			<section>
+				<button
+					type="button"
+					className={item(isHomePath(currentPath))}
+					onClick={() => onNavigate(HOME_PATH)}
+				>
+					{L('home')}
+				</button>
+			</section>
+			<section>
 				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
 					{L('folders')}
 				</h2>
@@ -52,7 +62,8 @@ export function Sidebar({
 						key={d.path}
 						type="button"
 						className={item(
-							currentPath.toLowerCase().startsWith(d.path.toLowerCase()),
+							!isHomePath(currentPath) &&
+								currentPath.toLowerCase().startsWith(d.path.toLowerCase()),
 						)}
 						onClick={() => onNavigate(d.path)}
 					>

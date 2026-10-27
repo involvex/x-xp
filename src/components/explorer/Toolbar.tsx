@@ -8,6 +8,7 @@ interface ToolbarProps {
 	viewMode: ViewMode
 	dualPane: boolean
 	showPreview: boolean
+	showHidden: boolean
 	searchQuery: string
 	onBack: () => void
 	onForward: () => void
@@ -15,8 +16,10 @@ interface ToolbarProps {
 	onHome: () => void
 	onRefresh: () => void
 	onNewFolder: () => void
+	onNewFile: () => void
 	onToggleDual: () => void
 	onTogglePreview: () => void
+	onToggleHidden: () => void
 	onViewMode: (mode: ViewMode) => void
 	onSearch: (q: string) => void
 	onSettings: () => void
@@ -79,6 +82,13 @@ export function Toolbar(props: ToolbarProps) {
 			<button
 				type="button"
 				className={btn}
+				onClick={props.onNewFile}
+			>
+				{L('newFile')}
+			</button>
+			<button
+				type="button"
+				className={btn}
 				onClick={props.onNewTab}
 			>
 				+ Tab
@@ -103,6 +113,14 @@ export function Toolbar(props: ToolbarProps) {
 				onClick={props.onTogglePreview}
 			>
 				{L('preview')}
+			</button>
+			<button
+				type="button"
+				className={`${btn} ${props.showHidden ? 'ring-1 ring-[var(--xp-fg)]' : ''}`}
+				onClick={props.onToggleHidden}
+				title={L('showHidden')}
+			>
+				{L('showHidden')}
 			</button>
 			<select
 				className="rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] px-2 py-1.5 text-sm"

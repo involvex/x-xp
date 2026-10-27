@@ -1,6 +1,9 @@
 import {formatDate, formatSize} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
 import type {FileEntry, SortKey, SortState, ViewMode} from '../../types/fs'
+import {FileIcon} from './FileIcon'
+
+export const DND_MIME = 'application/x-xp-paths'
 
 interface FileListProps {
 	locale: Locale
@@ -10,6 +13,7 @@ interface FileListProps {
 	sort: SortState
 	renaming: string | null
 	renameValue: string
+	dropTarget: string | null
 	onSort: (key: SortKey) => void
 	onRenameValue: (v: string) => void
 	onCommitRename: () => void
@@ -17,23 +21,22 @@ interface FileListProps {
 	onClick: (entry: FileEntry, e: React.MouseEvent) => void
 	onDoubleClick: (entry: FileEntry) => void
 	onContextMenu: (entry: FileEntry, e: React.MouseEvent) => void
-}
-
-function icon(entry: FileEntry): string {
-	if (entry.isDir) return '📁'
-	const ext = entry.extension.toLowerCase()
-	if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext))
-		return '🖼'
-	if (['txt', 'md', 'json', 'ts', 'tsx', 'js', 'rs', 'toml'].includes(ext))
-		return '📄'
-	if (['mp3', 'wav', 'flac'].includes(ext)) return '🎵'
-	if (['mp4', 'mkv', 'webm'].includes(ext)) return '🎬'
-	return '📄'
+	onDragStart: (entry: FileEntry, e: React.DragEvent) => void
+	onDragOverEntry: (entry: FileEntry, e: React.DragEvent) => void
+	onDragLeaveEntry: (entry: FileEntry) => void
+	onDropOnEntry: (entry: FileEntry, e: React.DragEvent) => void
+	onDragOverPane: (e: React.DragEvent) => void
+	onDropOnPane: (e: React.DragEvent) => void
 }
 
 function sortMark(sort: SortState, key: SortKey): string {
 	if (sort.key !== key) return ''
 	return sort.dir === 'asc' ? ' ▲' : ' ▼'
+}
+
+function dropClass(path: string, dropTarget: string | null, isDir: boolean) {
+	if (!isDir || dropTarget !== path) return ''
+	return 'ring-1 ring-[var(--xp-fg)] bg-[var(--xp-select)]'
 }
 
 export function FileList({
@@ -44,6 +47,7 @@ export function FileList({
 	sort,
 	renaming,
 	renameValue,
+	dropTarget,
 	onSort,
 	onRenameValue,
 	onCommitRename,
@@ -51,12 +55,22 @@ export function FileList({
 	onClick,
 	onDoubleClick,
 	onContextMenu,
+	onDragStart,
+	onDragOverEntry,
+	onDragLeaveEntry,
+	onDropOnEntry,
+	onDragOverPane,
+	onDropOnPane,
 }: FileListProps) {
 	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
 
 	if (entries.length === 0) {
 		return (
-			<div className="flex flex-1 items-center justify-center opacity-40 text-sm">
+			<div
+				className="flex flex-1 items-center justify-center opacity-40 text-sm"
+				onDragOver={onDragOverPane}
+				onDrop={onDropOnPane}
+			>
 				{L('empty')}
 			</div>
 		)
@@ -64,21 +78,33 @@ export function FileList({
 
 	if (viewMode === 'icons') {
 		return (
-			<div className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 overflow-auto p-3 content-start">
+			<div
+				className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 overflow-auto p-3 content-start"
+				onDragOver={onDragOverPane}
+				onDrop={onDropOnPane}
+			>
 				{entries.map(entry => (
 					<button
 						key={entry.path}
 						type="button"
+						draggable
 						className={`flex flex-col items-center gap-1 rounded p-2 text-center text-xs ${
 							selected.has(entry.path)
 								? 'bg-[var(--xp-select)]'
 								: 'hover:bg-[var(--xp-hover)]'
-						}`}
+						} ${dropClass(entry.path, dropTarget, entry.isDir)}`}
 						onClick={e => onClick(entry, e)}
 						onDoubleClick={() => onDoubleClick(entry)}
 						onContextMenu={e => onContextMenu(entry, e)}
+						onDragStart={e => onDragStart(entry, e)}
+						onDragOver={e => onDragOverEntry(entry, e)}
+						onDragLeave={() => onDragLeaveEntry(entry)}
+						onDrop={e => onDropOnEntry(entry, e)}
 					>
-						<span className="text-2xl">{icon(entry)}</span>
+						<FileIcon
+							entry={entry}
+							size={32}
+						/>
 						<span className="w-full truncate">{entry.name}</span>
 					</button>
 				))}
@@ -90,7 +116,11 @@ export function FileList({
 		'cursor-pointer select-none rounded px-1 hover:bg-[var(--xp-hover)] hover:opacity-100'
 
 	return (
-		<div className="flex flex-1 flex-col overflow-auto">
+		<div
+			className="flex flex-1 flex-col overflow-auto"
+			onDragOver={onDragOverPane}
+			onDrop={onDropOnPane}
+		>
 			{viewMode === 'details' && (
 				<div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_100px_160px] gap-2 border-b border-[var(--xp-border)] bg-[var(--xp-bg)] px-3 py-1.5 text-xs uppercase tracking-wide opacity-80">
 					<button
@@ -126,17 +156,22 @@ export function FileList({
 					return (
 						<li
 							key={entry.path}
+							draggable
 							className={`grid cursor-default grid-cols-[minmax(0,1fr)_100px_160px] items-center gap-2 px-3 py-1.5 text-sm ${
 								isSelected
 									? 'bg-[var(--xp-select)]'
 									: 'hover:bg-[var(--xp-hover)]'
-							} ${viewMode === 'list' ? 'grid-cols-1' : ''}`}
+							} ${viewMode === 'list' ? 'grid-cols-1' : ''} ${dropClass(entry.path, dropTarget, entry.isDir)}`}
 							onClick={e => onClick(entry, e)}
 							onDoubleClick={() => onDoubleClick(entry)}
 							onContextMenu={e => onContextMenu(entry, e)}
+							onDragStart={e => onDragStart(entry, e)}
+							onDragOver={e => onDragOverEntry(entry, e)}
+							onDragLeave={() => onDragLeaveEntry(entry)}
+							onDrop={e => onDropOnEntry(entry, e)}
 						>
 							<span className="flex min-w-0 items-center gap-2">
-								<span>{icon(entry)}</span>
+								<FileIcon entry={entry} />
 								{isRenaming ? (
 									<input
 										autoFocus
@@ -152,7 +187,7 @@ export function FileList({
 									/>
 								) : (
 									<span
-										className={`truncate ${entry.isDir ? 'font-semibold text-white' : 'text-[var(--xp-fg-dim)]'}`}
+										className={`truncate ${entry.isDir ? 'font-semibold text-white' : 'text-[var(--xp-fg-dim)]'} ${entry.hidden ? 'opacity-50' : ''}`}
 									>
 										{entry.name}
 									</span>

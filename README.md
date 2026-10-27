@@ -5,9 +5,9 @@ Use it as a modern Explorer alternative with CLI opening, tabs, dual-pane, previ
 
 ## Features
 
-**Core:** navigate, breadcrumbs, history, multi-select, copy/cut/paste, rename, delete (Recycle Bin), new folder, keyboard shortcuts, list/details/icons views, sidebar (drives + known folders).
+**Core:** Home page (quick access / drives / bookmarks / recent), navigate, breadcrumbs, history, multi-select, copy/cut/paste, rename, delete (Recycle Bin), new folder/file, drag-and-drop move/copy, keyboard shortcuts, list/details/icons views, SVG file icons, sidebar (Home + drives + known folders).
 
-**Plus:** tabs, dual-pane (F3), quick text preview (F4), bookmarks, recursive name search, `x-xp <path>` CLI, single-instance focus.
+**Plus:** tabs, dual-pane (F3), text + image preview (F4), show-hidden toggle, properties dialog, richer context menu, bookmarks, recursive name search, `x-xp <path>` CLI, single-instance focus.
 
 **Install / defaults (Windows):** MSI can register x-xp as the classic Directory/Folder/Drive open handler, create a System Restore point (`Before x-xp default explorer`), and backup prior registry values under `HKLM\Software\Involvex\x-xp\Backup`. In-app **Settings** can set/restore user-level handlers.
 
