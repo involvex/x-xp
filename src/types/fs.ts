@@ -18,6 +18,7 @@ export interface KnownFolder {
 export interface SearchResult {
 	entries: FileEntry[]
 	truncated: boolean
+	cancelled?: boolean
 }
 
 export interface RegistryBackupStatus {

@@ -33,6 +33,7 @@ import {DND_MIME, FileList} from './FileList'
 import {HomePage} from './HomePage'
 import {PropertiesModal} from './PropertiesModal'
 import {RecycleBinView} from './RecycleBinView'
+import {SearchResultsPanel} from './SearchResultsPanel'
 import {StatusBar} from './StatusBar'
 
 interface ExplorerPaneProps {
@@ -70,6 +71,7 @@ interface ExplorerPaneProps {
 	onTogglePreview: () => void
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
+	onClearSearch?: () => void
 	/** Increment while active to focus the address bar (Ctrl+L). */
 	focusAddressNonce?: number
 }
@@ -122,10 +124,13 @@ export function ExplorerPane({
 	onTogglePreview,
 	onToggleTag,
 	onDropComplete,
+	onClearSearch,
 	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
 	const addressRef = useRef<AddressBarHandle>(null)
 	const typeaheadRef = useRef({buffer: '', timer: 0 as number})
+	const searchJobRef = useRef<string | null>(null)
+	const pendingSelectRef = useRef<string | null>(null)
 	const [entries, setEntries] = useState<FileEntry[]>([])
 	const [selected, setSelected] = useState<Set<string>>(new Set())
 	const [anchor, setAnchor] = useState<string | null>(null)
@@ -134,6 +139,8 @@ export function ExplorerPane({
 	const [renameValue, setRenameValue] = useState('')
 	const [searchEntries, setSearchEntries] = useState<FileEntry[] | null>(null)
 	const [truncated, setTruncated] = useState(false)
+	const [searching, setSearching] = useState(false)
+	const [searchCancelled, setSearchCancelled] = useState(false)
 	const [loading, setLoading] = useState(false)
 	const [dropTarget, setDropTarget] = useState<string | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
@@ -235,34 +242,89 @@ export function ExplorerPane({
 		addressRef.current?.focusEdit()
 	}, [focusAddressNonce, active])
 
+	const searchActive = !atVirtual && !!searchQuery.trim()
+
 	useEffect(() => {
-		if (atVirtual || !searchQuery.trim()) {
+		if (!searchActive) {
+			if (searchJobRef.current) {
+				void api.cancelSearch(searchJobRef.current).catch(() => undefined)
+				searchJobRef.current = null
+			}
 			setSearchEntries(null)
 			setTruncated(false)
+			setSearching(false)
+			setSearchCancelled(false)
 			return
 		}
+		const q = searchQuery.trim()
+		const root = path
 		const handle = window.setTimeout(() => {
+			const jobId = crypto.randomUUID()
+			searchJobRef.current = jobId
+			setSearching(true)
+			setSearchCancelled(false)
+			setSearchEntries([])
+			setTruncated(false)
 			void api
-				.searchByName(path, searchQuery.trim())
+				.searchByName(root, q, undefined, jobId)
 				.then(res => {
+					if (searchJobRef.current !== jobId) return
 					setSearchEntries(res.entries)
 					setTruncated(res.truncated)
+					setSearchCancelled(!!res.cancelled)
+					setSearching(false)
+					if (searchJobRef.current === jobId) searchJobRef.current = null
 				})
-				.catch(e => onToast(String(e)))
+				.catch(e => {
+					if (searchJobRef.current !== jobId) return
+					setSearching(false)
+					searchJobRef.current = null
+					onToast(String(e))
+				})
 		}, 250)
-		return () => window.clearTimeout(handle)
-	}, [searchQuery, path, onToast, atVirtual])
+		return () => {
+			window.clearTimeout(handle)
+			const jobId = searchJobRef.current
+			if (jobId) {
+				void api.cancelSearch(jobId).catch(() => undefined)
+			}
+		}
+	}, [searchQuery, path, onToast, searchActive])
+
+	useEffect(() => {
+		const pending = pendingSelectRef.current
+		if (!pending || loading || searchActive) return
+		if (entries.some(e => e.path === pending)) {
+			setSelected(new Set([pending]))
+			setAnchor(pending)
+			requestAnimationFrame(() => {
+				const el = document.querySelector(
+					`[data-path="${CSS.escape(pending)}"]`,
+				)
+				el?.scrollIntoView({block: 'nearest'})
+			})
+		}
+		pendingSelectRef.current = null
+	}, [entries, loading, searchActive, path])
 
 	const visible = useMemo(() => {
-		const base = searchEntries ?? entries
+		const base = searchActive ? (searchEntries ?? []) : entries
 		let filtered = showHidden ? base : base.filter(e => !e.hidden)
-		if (tagFilter) {
+		if (tagFilter && !searchActive) {
 			filtered = filtered.filter(e =>
 				(tagMap[e.path] ?? []).includes(tagFilter),
 			)
 		}
-		return sortEntries(filtered, sort)
-	}, [searchEntries, entries, sort, showHidden, tagFilter, tagMap])
+		return searchActive ? filtered : sortEntries(filtered, sort)
+	}, [
+		searchActive,
+		searchEntries,
+		entries,
+		sort,
+		showHidden,
+		tagFilter,
+		tagMap,
+	])
 
 	const selectedEntries = useMemo(
 		() => visible.filter(e => selected.has(e.path)),
@@ -270,7 +332,12 @@ export function ExplorerPane({
 	)
 
 	useEffect(() => {
-		if (!showFolderSizes || atVirtual || viewMode !== 'details') {
+		if (
+			!showFolderSizes ||
+			atVirtual ||
+			searchActive ||
+			viewMode !== 'details'
+		) {
 			return
 		}
 		const dirs = visible.filter(e => e.isDir).map(e => e.path)
@@ -300,7 +367,7 @@ export function ExplorerPane({
 		return () => {
 			cancelled = true
 		}
-	}, [showFolderSizes, path, viewMode, visible, atVirtual])
+	}, [showFolderSizes, path, viewMode, visible, atVirtual, searchActive])
 
 	useEffect(() => {
 		if (!active) return
@@ -312,14 +379,33 @@ export function ExplorerPane({
 	}
 
 	const openEntry = async (entry: FileEntry) => {
-		if (entry.isDir) navigate(entry.path)
-		else {
+		if (entry.isDir) {
+			onClearSearch?.()
+			navigate(entry.path)
+		} else {
 			try {
 				await api.openPath(entry.path)
 			} catch (e) {
 				onToast(String(e))
 			}
 		}
+	}
+
+	const openContaining = async (entry: FileEntry) => {
+		try {
+			const parent = await api.parentPath(entry.path)
+			if (!parent) return
+			pendingSelectRef.current = entry.path
+			onClearSearch?.()
+			navigate(parent)
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
+	const cancelActiveSearch = () => {
+		const jobId = searchJobRef.current
+		if (jobId) void api.cancelSearch(jobId).catch(() => undefined)
 	}
 
 	const scrollPathIntoView = (entryPath: string) => {
@@ -587,6 +673,11 @@ export function ExplorerPane({
 			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 			if (atHome || atRecycle) return
 
+			if (e.key === 'Escape' && searchActive) {
+				e.preventDefault()
+				onClearSearch?.()
+				return
+			}
 			if (e.key === 'F5') {
 				e.preventDefault()
 				void load(path)
@@ -754,6 +845,32 @@ export function ExplorerPane({
 					reloadToken={reloadToken}
 					onToast={onToast}
 				/>
+			) : searchActive ? (
+				<SearchResultsPanel
+					locale={locale}
+					query={searchQuery.trim()}
+					rootPath={path}
+					entries={visible}
+					selected={selected}
+					searching={searching}
+					truncated={truncated}
+					cancelled={searchCancelled}
+					onSelect={onClick}
+					onOpen={entry => void openEntry(entry)}
+					onOpenContaining={entry => void openContaining(entry)}
+					onCancelSearch={cancelActiveSearch}
+					onClearSearch={() => onClearSearch?.()}
+					onContextMenu={(entry, e) => {
+						e.preventDefault()
+						if (!selected.has(entry.path)) setSelected(new Set([entry.path]))
+						setMenu({
+							x: e.clientX,
+							y: e.clientY,
+							path: entry.path,
+							isDir: entry.isDir,
+						})
+					}}
+				/>
 			) : viewMode === 'columns' ? (
 				<ColumnsView
 					locale={locale}
@@ -821,7 +938,7 @@ export function ExplorerPane({
 				itemCount={atVirtual ? 0 : visible.length}
 				selectedCount={selected.size}
 				path={path}
-				searchActive={!!searchQuery.trim() && !atVirtual}
+				searchActive={searchActive}
 				truncated={truncated}
 				lastWatchUpdate={lastWatchUpdate}
 			/>

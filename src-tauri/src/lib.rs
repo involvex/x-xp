@@ -19,7 +19,7 @@ use commands::registry::{
 	backup_folder_handlers, create_system_restore_point, get_registry_status,
 	restore_folder_handlers, set_as_default_folder_handler,
 };
-use commands::search::search_by_name;
+use commands::search::{cancel_search, search_by_name, SearchState};
 use commands::transfer::{cancel_transfer, TransferState};
 use commands::watch::{unwatch_dir, watch_dir, WatchState};
 use std::env;
@@ -56,6 +56,7 @@ pub fn run() {
 		.manage(DesktopState::default())
 		.manage(WatchState::default())
 		.manage(TransferState::default())
+		.manage(SearchState::default())
 		.invoke_handler(tauri::generate_handler![
 			read_dir,
 			get_drives,
@@ -97,6 +98,7 @@ pub fn run() {
 			watch_dir,
 			unwatch_dir,
 			cancel_transfer,
+			cancel_search,
 		])
 		.setup(move |app| {
 			let menu = build_tray_menu(app.handle(), &[])?;

@@ -58,8 +58,19 @@ export const api = {
 	getStartupPath: () => invoke<string | null>('get_startup_path'),
 	parentPath: (path: string) => invoke<string | null>('parent_path', {path}),
 	resolvePath: (path: string) => invoke<FileEntry>('resolve_path', {path}),
-	searchByName: (root: string, query: string, maxResults?: number) =>
-		invoke<SearchResult>('search_by_name', {root, query, maxResults}),
+	searchByName: (
+		root: string,
+		query: string,
+		maxResults?: number,
+		jobId?: string,
+	) =>
+		invoke<SearchResult>('search_by_name', {
+			root,
+			query,
+			maxResults,
+			jobId: jobId ?? null,
+		}),
+	cancelSearch: (jobId: string) => invoke<void>('cancel_search', {jobId}),
 	getRegistryStatus: () => invoke<RegistryBackupStatus>('get_registry_status'),
 	backupFolderHandlers: () => invoke<string>('backup_folder_handlers'),
 	setAsDefault: () => invoke<string>('set_as_default_folder_handler'),

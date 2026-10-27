@@ -973,6 +973,7 @@ export default function App() {
 		onTogglePreview: togglePreview,
 		onToggleTag: toggleTagOnPaths,
 		onDropComplete: bumpReload,
+		onClearSearch: () => setSearchQuery(''),
 	}
 
 	return (
