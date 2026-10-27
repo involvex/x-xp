@@ -72,6 +72,11 @@ interface ExplorerPaneProps {
 	onToggleTag: (paths: string[], tagId: string) => void
 	onDropComplete?: () => void
 	onClearSearch?: () => void
+	onPushUndo?: (
+		action:
+			| {type: 'rename'; from: string; to: string}
+			| {type: 'delete'; paths: string[]},
+	) => void
 	/** Increment while active to focus the address bar (Ctrl+L). */
 	focusAddressNonce?: number
 }
@@ -125,6 +130,7 @@ export function ExplorerPane({
 	onToggleTag,
 	onDropComplete,
 	onClearSearch,
+	onPushUndo,
 	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
 	const addressRef = useRef<AddressBarHandle>(null)
@@ -483,6 +489,7 @@ export function ExplorerPane({
 		if (!window.confirm(t('confirmDelete', locale))) return
 		try {
 			await api.deleteEntries(paths)
+			onPushUndo?.({type: 'delete', paths})
 			await load(path)
 		} catch (e) {
 			onToast(String(e))
@@ -587,7 +594,10 @@ export function ExplorerPane({
 		const parent = renaming.replace(/[\\/][^\\/]+$/, '') || path
 		const next = pathJoin(parent, renameValue)
 		try {
-			if (next !== renaming) await api.renameEntry(renaming, next)
+			if (next !== renaming) {
+				await api.renameEntry(renaming, next)
+				onPushUndo?.({type: 'rename', from: renaming, to: next})
+			}
 			setRenaming(null)
 			await load(path)
 		} catch (e) {

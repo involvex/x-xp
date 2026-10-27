@@ -43,6 +43,8 @@ export const api = {
 	listRecycleBin: () => invoke<RecycleItem[]>('list_recycle_bin'),
 	restoreRecycleItem: (id: string) =>
 		invoke<void>('restore_recycle_item', {id}),
+	restoreByOriginalPaths: (paths: string[]) =>
+		invoke<number>('restore_by_original_paths', {paths}),
 	deleteRecycleItem: (id: string) => invoke<void>('delete_recycle_item', {id}),
 	setCloseToTray: (enabled: boolean) =>
 		invoke<void>('set_close_to_tray', {enabled}),

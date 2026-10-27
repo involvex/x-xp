@@ -1,6 +1,6 @@
 import {listen} from '@tauri-apps/api/event'
 import {getCurrentWindow} from '@tauri-apps/api/window'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
 	CommandPalette,
 	type PaletteAction,
@@ -73,6 +73,13 @@ import {
 	listenTransferProgress,
 	type TransferProgress,
 } from './lib/transfer'
+import {
+	performUndo,
+	popUndo,
+	pushUndo,
+	undoPromptKey,
+	type UndoAction,
+} from './lib/undo'
 import type {
 	Bookmark,
 	ClipboardState,
@@ -159,8 +166,16 @@ export default function App() {
 	>('general')
 	const [desktopPrefs, setDesktopPrefs] =
 		useState<DesktopPrefs>(defaultDesktopPrefs)
-	const [toast, setToast] = useState<string | null>(null)
+	const [toast, setToast] = useState<{
+		message: string
+		actionLabel?: string
+		onAction?: () => void
+	} | null>(null)
+	const undoRef = useRef<UndoAction[]>([])
 	const [transfer, setTransfer] = useState<TransferProgress | null>(null)
+	const showToast = useCallback((message: string) => {
+		setToast({message})
+	}, [])
 	const [ready, setReady] = useState(false)
 	const [reloadToken, setReloadToken] = useState(0)
 	const [paletteOpen, setPaletteOpen] = useState(false)
@@ -184,6 +199,39 @@ export default function App() {
 	const bumpReload = useCallback(() => {
 		setReloadToken(n => n + 1)
 	}, [])
+
+	const runLastUndo = useCallback(async () => {
+		const {stack, action} = popUndo(undoRef.current)
+		undoRef.current = stack
+		if (!action) {
+			showToast(t('undoEmpty', locale))
+			return
+		}
+		try {
+			const key = await performUndo(action)
+			showToast(t(key, locale))
+			bumpReload()
+		} catch (e) {
+			const msg = String(e)
+			showToast(
+				msg.includes('undoDeleteFailed') ? t('undoDeleteFailed', locale) : msg,
+			)
+		}
+	}, [bumpReload, locale, showToast])
+
+	const pushUndoAction = useCallback(
+		(action: UndoAction) => {
+			undoRef.current = pushUndo(undoRef.current, action)
+			setToast({
+				message: t(undoPromptKey(action), locale),
+				actionLabel: t('undo', locale),
+				onAction: () => {
+					void runLastUndo()
+				},
+			})
+		},
+		[locale, runLastUndo],
+	)
 
 	const recordNavigate = useCallback(async (next: string) => {
 		void saveLastPath(next)
@@ -455,7 +503,7 @@ export default function App() {
 				})
 			} catch (e) {
 				if (!cancelled) {
-					setToast(String(e))
+					showToast(String(e))
 					setReady(true)
 				}
 			}
@@ -464,7 +512,7 @@ export default function App() {
 			cancelled = true
 			unlisten?.()
 		}
-	}, [])
+	}, [showToast])
 
 	useEffect(() => {
 		let unlisten: (() => void) | undefined
@@ -550,6 +598,10 @@ export default function App() {
 			if (e.key === 'F4' && !typing) {
 				e.preventDefault()
 				togglePreview()
+			}
+			if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) {
+				e.preventDefault()
+				void runLastUndo()
 			}
 			if (e.altKey && e.key === 'ArrowLeft' && !typing) {
 				e.preventDefault()
@@ -643,10 +695,10 @@ export default function App() {
 			void applyGlobalHotkey(prefs.globalHotkey)
 				.then(() => {
 					if (prefs.globalHotkey) {
-						setToast(t('hotkeyRegistered', locale))
+						showToast(t('hotkeyRegistered', locale))
 					}
 				})
-				.catch(() => setToast(t('hotkeyFailed', locale)))
+				.catch(() => showToast(t('hotkeyFailed', locale)))
 		}
 	}
 
@@ -662,7 +714,7 @@ export default function App() {
 			if (parent && parent !== base) navigateActive(parent)
 			else navigateActive(HOME_PATH)
 		} catch (e) {
-			setToast(String(e))
+			showToast(String(e))
 		}
 	}
 
@@ -676,14 +728,14 @@ export default function App() {
 		const next = [...bookmarks.filter(b => b.path !== bm.path), bm]
 		setBookmarks(next)
 		await saveBookmarks(next)
-		setToast(t('bookmarkAdded', locale))
+		showToast(t('bookmarkAdded', locale))
 	}
 
 	const hideToTray = async () => {
 		try {
 			await getCurrentWindow().hide()
 		} catch (e) {
-			setToast(String(e))
+			showToast(String(e))
 		}
 	}
 
@@ -758,7 +810,7 @@ export default function App() {
 
 	const restoreQuickAccess = async () => {
 		await updateQaPrefs(defaultQuickAccessPrefs())
-		setToast(t('quickAccessRestored', locale))
+		showToast(t('quickAccessRestored', locale))
 	}
 
 	const activeBasePath =
@@ -775,10 +827,10 @@ export default function App() {
 				? `${base}${name}`
 				: `${base}${sep}${name}`
 			await api.createDir(full)
-			setToast(`Created ${name}`)
+			showToast(`Created ${name}`)
 			bumpReload()
 		} catch (e) {
-			setToast(String(e))
+			showToast(String(e))
 		}
 	}
 
@@ -793,10 +845,10 @@ export default function App() {
 				? `${base}${name}`
 				: `${base}${sep}${name}`
 			await api.createFile(full)
-			setToast(`Created ${name}`)
+			showToast(`Created ${name}`)
 			bumpReload()
 		} catch (e) {
-			setToast(String(e))
+			showToast(String(e))
 		}
 	}
 
@@ -964,7 +1016,7 @@ export default function App() {
 		menuSettings,
 		onSortChange: setSort,
 		onClipboard: setClipboard,
-		onToast: setToast,
+		onToast: showToast,
 		onPreviewEntry: setPreviewEntry,
 		onAddBookmark: (p: string, label: string) => void addBookmarkAt(p, label),
 		onOpenNewTab: (p: string) => {
@@ -981,6 +1033,7 @@ export default function App() {
 		onToggleTag: toggleTagOnPaths,
 		onDropComplete: bumpReload,
 		onClearSearch: () => setSearchQuery(''),
+		onPushUndo: pushUndoAction,
 	}
 
 	return (
@@ -1111,7 +1164,7 @@ export default function App() {
 					onRestoreQuickAccess={() => void restoreQuickAccess()}
 					initialTab={settingsTab}
 					onClose={() => setSettingsOpen(false)}
-					onToast={setToast}
+					onToast={showToast}
 				/>
 			)}
 			<CommandPalette
@@ -1131,7 +1184,9 @@ export default function App() {
 				/>
 			)}
 			<Toast
-				message={toast}
+				message={toast?.message ?? null}
+				actionLabel={toast?.actionLabel}
+				onAction={toast?.onAction}
 				onClose={() => setToast(null)}
 			/>
 		</div>

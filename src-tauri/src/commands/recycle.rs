@@ -212,3 +212,87 @@ pub async fn delete_recycle_item(id: String) -> Result<(), String> {
 			.map_err(|e| e.to_string())?
 	}
 }
+
+fn normalize_path_key(path: &str) -> String {
+	path.trim()
+		.trim_end_matches(['\\', '/'])
+		.replace('/', "\\")
+		.to_ascii_lowercase()
+}
+
+/// Restore Recycle Bin items whose original paths match (for undo-delete).
+#[tauri::command]
+pub async fn restore_by_original_paths(paths: Vec<String>) -> Result<u32, String> {
+	#[cfg(not(windows))]
+	{
+		let _ = paths;
+		Err("Restore from Recycle Bin is only available on Windows".into())
+	}
+	#[cfg(windows)]
+	{
+		tauri::async_runtime::spawn_blocking(move || {
+			// Brief pause so Shell sees freshly trashed items
+			std::thread::sleep(std::time::Duration::from_millis(150));
+			let wanted: std::collections::HashSet<String> = paths
+				.iter()
+				.map(|p| normalize_path_key(p))
+				.filter(|p| !p.is_empty())
+				.collect();
+			if wanted.is_empty() {
+				return Ok(0);
+			}
+
+			let script = r#"
+$ErrorActionPreference = 'Stop'
+$shell = New-Object -ComObject Shell.Application
+$folder = $shell.NameSpace(0x0a)
+if (-not $folder) { throw 'Could not open Recycle Bin' }
+$items = @()
+foreach ($item in $folder.Items()) {
+  $orig = [string]$folder.GetDetailsOf($item, 1)
+  $path = [string]$item.Path
+  $items += [PSCustomObject]@{ id = $path; originalPath = $orig }
+}
+if ($items.Count -eq 0) { '[]' } else { $items | ConvertTo-Json -Compress -Depth 3 }
+"#;
+			let raw = run_ps(script)?;
+			if raw.is_empty() {
+				return Ok(0);
+			}
+			let parsed: serde_json::Value =
+				serde_json::from_str(&raw).map_err(|e| format!("Parse recycle list: {e}"))?;
+			let arr = match parsed {
+				serde_json::Value::Array(a) => a,
+				serde_json::Value::Object(_) => vec![parsed],
+				_ => Vec::new(),
+			};
+
+			let mut restored: u32 = 0;
+			let mut used_ids = std::collections::HashSet::new();
+			for v in arr {
+				let id = v
+					.get("id")
+					.and_then(|x| x.as_str())
+					.unwrap_or("")
+					.to_string();
+				let orig = v
+					.get("originalPath")
+					.and_then(|x| x.as_str())
+					.unwrap_or("");
+				if id.is_empty() || used_ids.contains(&id) {
+					continue;
+				}
+				let key = normalize_path_key(orig);
+				if !wanted.contains(&key) {
+					continue;
+				}
+				recycle_verb(id.clone(), "restore")?;
+				used_ids.insert(id);
+				restored += 1;
+			}
+			Ok(restored)
+		})
+		.await
+		.map_err(|e| e.to_string())?
+	}
+}

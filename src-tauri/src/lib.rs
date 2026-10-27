@@ -14,7 +14,9 @@ use commands::path::{
 	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path,
 	parse_startup_path_with_cwd, resolve_path, set_startup_path, StartupState,
 };
-use commands::recycle::{delete_recycle_item, list_recycle_bin, restore_recycle_item};
+use commands::recycle::{
+	delete_recycle_item, list_recycle_bin, restore_by_original_paths, restore_recycle_item,
+};
 use commands::registry::{
 	backup_folder_handlers, create_system_restore_point, get_registry_status,
 	restore_folder_handlers, set_as_default_folder_handler,
@@ -75,6 +77,7 @@ pub fn run() {
 			compress_entries,
 			list_recycle_bin,
 			restore_recycle_item,
+			restore_by_original_paths,
 			delete_recycle_item,
 			read_text_preview,
 			format_modified,
