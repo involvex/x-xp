@@ -85,6 +85,11 @@ const strings = {
 		sortBy: 'Sort by',
 		sortAsc: 'Ascending',
 		sortDesc: 'Descending',
+		closeTab: 'Close tab',
+		closeOtherTabs: 'Close other tabs',
+		closeTabsToLeft: 'Close tabs to the left',
+		closeTabsToRight: 'Close tabs to the right',
+		closeAllTabs: 'Close all tabs',
 		autoRefreshFolders: 'Auto-refresh folders',
 		autoRefreshFoldersHint:
 			'Reload the listing when files change on disk (no F5 needed).',
@@ -306,6 +311,11 @@ const strings = {
 		sortBy: 'Sortieren nach',
 		sortAsc: 'Aufsteigend',
 		sortDesc: 'Absteigend',
+		closeTab: 'Tab schließen',
+		closeOtherTabs: 'Andere Tabs schließen',
+		closeTabsToLeft: 'Tabs links schließen',
+		closeTabsToRight: 'Tabs rechts schließen',
+		closeAllTabs: 'Alle Tabs schließen',
 		autoRefreshFolders: 'Ordner automatisch aktualisieren',
 		autoRefreshFoldersHint:
 			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',

@@ -740,6 +740,44 @@ export default function App() {
 		})
 	}
 
+	const closeOtherTabs = (id: string) => {
+		setTabs(prev => {
+			const keep = prev.find(t => t.id === id)
+			if (!keep) return prev
+			setActiveTabId(id)
+			return [keep]
+		})
+	}
+
+	const closeTabsToLeft = (id: string) => {
+		setTabs(prev => {
+			const idx = prev.findIndex(t => t.id === id)
+			if (idx <= 0) return prev
+			const next = prev.slice(idx)
+			if (!next.some(t => t.id === activeTabId)) setActiveTabId(id)
+			return next
+		})
+	}
+
+	const closeTabsToRight = (id: string) => {
+		setTabs(prev => {
+			const idx = prev.findIndex(t => t.id === id)
+			if (idx < 0 || idx >= prev.length - 1) return prev
+			const next = prev.slice(0, idx + 1)
+			if (!next.some(t => t.id === activeTabId)) setActiveTabId(id)
+			return next
+		})
+	}
+
+	const closeAllTabs = () => {
+		setTabs(prev => {
+			if (prev.length <= 1) return prev
+			const keep = prev[0]
+			setActiveTabId(keep.id)
+			return [keep]
+		})
+	}
+
 	const cycleTab = (dir: 1 | -1) => {
 		if (tabs.length < 2) return
 		const idx = tabs.findIndex(t => t.id === activeTabId)
@@ -1310,8 +1348,13 @@ export default function App() {
 			<TabBar
 				tabs={tabs}
 				activeId={activeTabId}
+				locale={locale}
 				onSelect={setActiveTabId}
 				onClose={closeTab}
+				onCloseOthers={closeOtherTabs}
+				onCloseLeft={closeTabsToLeft}
+				onCloseRight={closeTabsToRight}
+				onCloseAll={closeAllTabs}
 				onNew={() => {
 					const tab = newTab(HOME_PATH)
 					setTabs(prev => [...prev, tab])
