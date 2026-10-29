@@ -1,6 +1,6 @@
 import {useEffect, useRef} from 'react'
 import {t, type Locale} from '../../lib/i18n'
-import type {ViewMode} from '../../types/fs'
+import type {SortKey, SortState, ViewMode} from '../../types/fs'
 
 interface ToolbarProps {
 	locale: Locale
@@ -14,6 +14,7 @@ interface ToolbarProps {
 	showFolderSizes: boolean
 	showExtensions: boolean
 	searchQuery: string
+	sort: SortState
 	/** Increment to focus the search field (Ctrl+F). */
 	focusSearchNonce?: number
 	onBack: () => void
@@ -30,6 +31,7 @@ interface ToolbarProps {
 	onToggleFolderSizes: () => void
 	onToggleExtensions: () => void
 	onViewMode: (mode: ViewMode) => void
+	onSortChange: (sort: SortState) => void
 	onSearch: (q: string) => void
 	onSettings: () => void
 	onNewTab: () => void
@@ -116,6 +118,34 @@ export function Toolbar(props: ToolbarProps) {
 				onClick={props.onBookmark}
 			>
 				★
+			</button>
+			<select
+				className="rounded border border-[var(--xp-border)] bg-[var(--xp-hover)] px-2 py-1.5 text-sm hover:bg-[var(--xp-select)]"
+				value={props.sort.key}
+				onChange={e =>
+					props.onSortChange({
+						key: e.target.value as SortKey,
+						dir: props.sort.dir,
+					})
+				}
+				title={L('sortBy')}
+			>
+				<option value="name">{L('name')}</option>
+				<option value="size">{L('size')}</option>
+				<option value="modified">{L('modified')}</option>
+			</select>
+			<button
+				type="button"
+				className={btn}
+				onClick={() =>
+					props.onSortChange({
+						key: props.sort.key,
+						dir: props.sort.dir === 'asc' ? 'desc' : 'asc',
+					})
+				}
+				title={props.sort.dir === 'asc' ? L('sortAsc') : L('sortDesc')}
+			>
+				{props.sort.dir === 'asc' ? '↑' : '↓'}
 			</button>
 			<button
 				type="button"

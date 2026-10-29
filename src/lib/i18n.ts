@@ -82,6 +82,9 @@ const strings = {
 			'Hide the extension of known files (folders are unaffected).',
 		selectAll: 'Select all',
 		invertSelection: 'Invert selection',
+		sortBy: 'Sort by',
+		sortAsc: 'Ascending',
+		sortDesc: 'Descending',
 		autoRefreshFolders: 'Auto-refresh folders',
 		autoRefreshFoldersHint:
 			'Reload the listing when files change on disk (no F5 needed).',
@@ -300,6 +303,9 @@ const strings = {
 			'Endung bekannter Dateien ausblenden (Ordner sind nicht betroffen).',
 		selectAll: 'Alles auswählen',
 		invertSelection: 'Auswahl umkehren',
+		sortBy: 'Sortieren nach',
+		sortAsc: 'Aufsteigend',
+		sortDesc: 'Absteigend',
 		autoRefreshFolders: 'Ordner automatisch aktualisieren',
 		autoRefreshFoldersHint:
 			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',

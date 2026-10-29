@@ -1330,6 +1330,7 @@ export default function App() {
 				showFolderSizes={showFolderSizes}
 				showExtensions={showExtensions}
 				searchQuery={searchQuery}
+				sort={sort}
 				focusSearchNonce={focusSearchNonce}
 				onBack={() => goHistory(-1)}
 				onForward={() => goHistory(1)}
@@ -1345,6 +1346,7 @@ export default function App() {
 				onToggleFolderSizes={toggleFolderSizes}
 				onToggleExtensions={toggleExtensions}
 				onViewMode={changeView}
+				onSortChange={setSort}
 				onSearch={setSearchQuery}
 				onSettings={() => {
 					setSettingsTab('general')
