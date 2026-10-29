@@ -28,7 +28,6 @@ import type {
 	TagMap,
 	ViewMode,
 } from '../../types/fs'
-import {AddressBar, type AddressBarHandle} from './AddressBar'
 import {ColumnsView} from './ColumnsView'
 import {ContextMenu, type ContextMenuState} from './ContextMenu'
 import {DND_MIME, FileList} from './FileList'
@@ -144,7 +143,6 @@ export function ExplorerPane({
 	onHideQuickAccess,
 	focusAddressNonce = 0,
 }: ExplorerPaneProps) {
-	const addressRef = useRef<AddressBarHandle>(null)
 	const typeaheadRef = useRef({buffer: '', timer: 0 as number})
 	const searchJobRef = useRef<string | null>(null)
 	const pendingSelectRef = useRef<string | null>(null)
@@ -263,7 +261,7 @@ export function ExplorerPane({
 
 	useEffect(() => {
 		if (!active || !focusAddressNonce) return
-		addressRef.current?.focusEdit()
+		// Address bar is now in App; focusing handled there if needed
 	}, [focusAddressNonce, active])
 
 	const searchActive = !atVirtual && !!searchQuery.trim()
@@ -916,11 +914,6 @@ export function ExplorerPane({
 			onDragOver={onDragOverPane}
 			onDrop={onDropOnPane}
 		>
-			<AddressBar
-				ref={addressRef}
-				path={path}
-				onNavigate={navigate}
-			/>
 			{loading && <div className="px-3 py-1 text-xs opacity-50">Loading…</div>}
 			{loadError && !loading ? (
 				<div className="mx-3 my-2 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">

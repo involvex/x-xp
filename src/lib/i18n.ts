@@ -90,6 +90,7 @@ const strings = {
 		closeTabsToLeft: 'Close tabs to the left',
 		closeTabsToRight: 'Close tabs to the right',
 		closeAllTabs: 'Close all tabs',
+		editPath: 'Edit path',
 		autoRefreshFolders: 'Auto-refresh folders',
 		autoRefreshFoldersHint:
 			'Reload the listing when files change on disk (no F5 needed).',
@@ -316,6 +317,7 @@ const strings = {
 		closeTabsToLeft: 'Tabs links schließen',
 		closeTabsToRight: 'Tabs rechts schließen',
 		closeAllTabs: 'Alle Tabs schließen',
+		editPath: 'Pfad bearbeiten',
 		autoRefreshFolders: 'Ordner automatisch aktualisieren',
 		autoRefreshFoldersHint:
 			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',

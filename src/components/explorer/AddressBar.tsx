@@ -1,140 +1,122 @@
-import {forwardRef, useEffect, useImperativeHandle, useState} from 'react'
-import {splitPath} from '../../lib/api'
-import {
-	HOME_PATH,
-	isHomePath,
-	isRecyclePath,
-	RECYCLE_PATH,
-} from '../../lib/paths'
+import {useEffect, useRef, useState} from 'react'
+import {t, type Locale} from '../../lib/i18n'
 
 interface AddressBarProps {
+	locale: Locale
 	path: string
 	onNavigate: (path: string) => void
 }
 
-export interface AddressBarHandle {
-	focusEdit: () => void
+function splitPath(p: string): string[] {
+	if (!p) return []
+	// Handle Windows paths
+	if (p.includes('\\')) {
+		const parts = p.split('\\').filter(Boolean)
+		// If starts with drive letter like C:
+		if (parts.length > 0 && /^[A-Za-z]:$/.test(parts[0])) {
+			return parts
+		}
+		return parts
+	}
+	if (p === '/') return ['/']
+	const parts = p.split('/').filter(Boolean)
+	if (p.startsWith('/')) return ['/', ...parts]
+	return parts
 }
 
-export const AddressBar = forwardRef<AddressBarHandle, AddressBarProps>(
-	function AddressBar({path, onNavigate}, ref) {
-		const [editing, setEditing] = useState(false)
-		const [draft, setDraft] = useState(path)
+function joinPath(parts: string[], index: number): string {
+	if (parts.length === 0) return parts[0] || ''
+	// Windows style
+	if (parts[0] && /^[A-Za-z]:$/.test(parts[0])) {
+		if (index === 0) return parts[0] + '\\'
+		return parts.slice(0, index + 1).join('\\')
+	}
+	if (parts[0] === '/') {
+		if (index === 0) return '/'
+		return '/' + parts.slice(1, index + 1).join('/')
+	}
+	return parts.slice(0, index + 1).join('/')
+}
 
-		useEffect(() => {
-			setDraft(path)
-			setEditing(false)
-		}, [path])
+export function AddressBar({locale, path, onNavigate}: AddressBarProps) {
+	const [editing, setEditing] = useState(false)
+	const [value, setValue] = useState(path)
+	const inputRef = useRef<HTMLInputElement>(null)
+	const L = (key: Parameters<typeof t>[0]) => t(key, locale)
 
-		useImperativeHandle(ref, () => ({
-			focusEdit: () => {
-				setDraft(path)
-				setEditing(true)
-			},
-		}))
+	useEffect(() => {
+		if (!editing) setValue(path)
+	}, [path, editing])
 
+	useEffect(() => {
 		if (editing) {
-			return (
-				<form
-					className="flex gap-2 border-b border-[var(--xp-border)] px-3 py-2"
-					onSubmit={e => {
-						e.preventDefault()
-						onNavigate(draft.trim())
-						setEditing(false)
-					}}
-				>
-					<input
-						autoFocus
-						value={draft}
-						onChange={e => setDraft(e.target.value)}
-						onBlur={() => setEditing(false)}
-						onKeyDown={e => {
-							if (e.key === 'Escape') setEditing(false)
-						}}
-						className="flex-1 rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] px-3 py-1.5 text-sm outline-none"
-					/>
-					<button
-						type="submit"
-						className="rounded bg-[var(--xp-hover)] px-3 py-1.5 text-sm hover:bg-[var(--xp-select)]"
-					>
-						Go
-					</button>
-				</form>
-			)
+			inputRef.current?.focus()
+			inputRef.current?.select()
 		}
+	}, [editing])
 
-		if (isHomePath(path) || isRecyclePath(path)) {
-			return (
+	const parts = splitPath(path)
+
+	const commit = () => {
+		const trimmed = value.trim()
+		if (trimmed) {
+			onNavigate(trimmed)
+		} else {
+			setValue(path)
+		}
+		setEditing(false)
+	}
+
+	if (editing) {
+		return (
+			<div className="flex items-center gap-2 border-b border-[var(--xp-border)] px-3 py-1.5">
+				<input
+					ref={inputRef}
+					className="flex-1 rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-2 py-1 text-sm outline-none focus:border-[var(--xp-fg)]"
+					value={value}
+					onChange={e => setValue(e.target.value)}
+					onBlur={commit}
+					onKeyDown={e => {
+						if (e.key === 'Enter') {
+							e.preventDefault()
+							commit()
+						}
+						if (e.key === 'Escape') {
+							e.preventDefault()
+							setValue(path)
+							setEditing(false)
+						}
+					}}
+				/>
+			</div>
+		)
+	}
+
+	return (
+		<div className="flex items-center gap-1 border-b border-[var(--xp-border)] px-3 py-1.5 text-sm overflow-x-auto">
+			{parts.map((part, idx) => (
 				<div
-					className="flex flex-wrap items-center gap-1 border-b border-[var(--xp-border)] px-3 py-2 text-sm"
-					onDoubleClick={() => setEditing(true)}
-					title="Double-click to edit path"
+					key={idx}
+					className="flex items-center gap-1"
 				>
 					<button
 						type="button"
 						className="rounded px-1.5 py-0.5 hover:bg-[var(--xp-hover)]"
-						onClick={() => onNavigate(HOME_PATH)}
+						onClick={() => onNavigate(joinPath(parts, idx))}
 					>
-						Home
+						{part === '/' ? '/' : part}
 					</button>
-					{isRecyclePath(path) && (
-						<>
-							<span className="opacity-40">›</span>
-							<button
-								type="button"
-								className="rounded px-1.5 py-0.5 hover:bg-[var(--xp-hover)]"
-								onClick={() => onNavigate(RECYCLE_PATH)}
-							>
-								Recycle Bin
-							</button>
-						</>
-					)}
+					{idx < parts.length - 1 && <span className="opacity-40">›</span>}
 				</div>
-			)
-		}
-
-		const {root, parts} = splitPath(path)
-		const crumbPaths: {label: string; path: string}[] = []
-		let acc = root
-		crumbPaths.push({label: root.replace(/[\\/]$/, '') || root, path: root})
-		for (const part of parts) {
-			acc =
-				acc.endsWith('\\') || acc.endsWith('/')
-					? `${acc}${part}`
-					: `${acc}\\${part}`
-			crumbPaths.push({label: part, path: acc})
-		}
-
-		return (
-			<div
-				className="flex flex-wrap items-center gap-1 border-b border-[var(--xp-border)] px-3 py-2 text-sm"
-				onDoubleClick={() => setEditing(true)}
-				title="Double-click to edit path"
+			))}
+			<button
+				type="button"
+				className="ml-auto rounded px-1.5 py-0.5 opacity-60 hover:bg-[var(--xp-hover)] hover:opacity-100"
+				onClick={() => setEditing(true)}
+				title={L('editPath') || 'Edit path'}
 			>
-				<button
-					type="button"
-					className="rounded px-1.5 py-0.5 opacity-60 hover:bg-[var(--xp-hover)] hover:opacity-100"
-					onClick={() => onNavigate(HOME_PATH)}
-				>
-					Home
-				</button>
-				<span className="opacity-40">›</span>
-				{crumbPaths.map((c, i) => (
-					<span
-						key={c.path}
-						className="flex items-center gap-1"
-					>
-						{i > 0 && <span className="opacity-40">›</span>}
-						<button
-							type="button"
-							className="rounded px-1.5 py-0.5 hover:bg-[var(--xp-hover)]"
-							onClick={() => onNavigate(c.path)}
-						>
-							{c.label}
-						</button>
-					</span>
-				))}
-			</div>
-		)
-	},
-)
+				✎
+			</button>
+		</div>
+	)
+}
