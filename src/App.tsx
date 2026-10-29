@@ -52,6 +52,7 @@ import {
 	loadQuickAccessPrefs,
 	loadRecentPaths,
 	loadSession,
+	loadShowExtensions,
 	loadShowFolderSizes,
 	loadShowHidden,
 	loadShowPreview,
@@ -76,6 +77,7 @@ import {
 	savePreviewWidth,
 	saveQuickAccessPrefs,
 	saveSession,
+	saveShowExtensions,
 	saveShowFolderSizes,
 	saveShowHidden,
 	saveShowPreview,
@@ -191,6 +193,7 @@ export default function App() {
 	const snapSideRef = useRef<'left' | 'right' | null>(null)
 	const [showHidden, setShowHidden] = useState(false)
 	const [showFolderSizes, setShowFolderSizes] = useState(false)
+	const [showExtensions, setShowExtensions] = useState(true)
 	const [autoRefreshFolders, setAutoRefreshFolders] = useState(true)
 	const [searchQuery, setSearchQuery] = useState('')
 	const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
@@ -379,6 +382,7 @@ export default function App() {
 					toolsOn,
 					hidden,
 					folderSizesOn,
+					extensionsOn,
 					autoRefreshOn,
 					loc,
 					rec,
@@ -406,6 +410,7 @@ export default function App() {
 					loadToolPaths(),
 					loadShowHidden(),
 					loadShowFolderSizes(),
+					loadShowExtensions(),
 					loadAutoRefreshFolders(),
 					loadLocale(),
 					loadRecentPaths(),
@@ -435,6 +440,7 @@ export default function App() {
 				setToolPaths(toolsOn)
 				setShowHidden(hidden)
 				setShowFolderSizes(folderSizesOn)
+				setShowExtensions(extensionsOn)
 				setAutoRefreshFolders(autoRefreshOn)
 				setLocale(loc)
 				setRecent(rec)
@@ -809,6 +815,19 @@ export default function App() {
 		})
 	}
 
+	const toggleExtensions = () => {
+		setShowExtensions(v => {
+			const next = !v
+			void saveShowExtensions(next)
+			return next
+		})
+	}
+
+	const changeShowExtensions = (value: boolean) => {
+		setShowExtensions(value)
+		void saveShowExtensions(value)
+	}
+
 	const changeAutoRefreshFolders = (value: boolean) => {
 		setAutoRefreshFolders(value)
 		void saveAutoRefreshFolders(value)
@@ -1172,6 +1191,11 @@ export default function App() {
 			run: toggleFolderSizes,
 		},
 		{
+			id: 'file-extensions',
+			label: t('showFileExtensions', locale),
+			run: toggleExtensions,
+		},
+		{
 			id: 'view-details',
 			label: `${t('name', locale)} → Details`,
 			run: () => changeView('details'),
@@ -1239,6 +1263,7 @@ export default function App() {
 		clipboard,
 		showHidden,
 		showFolderSizes,
+		showExtensions,
 		autoRefreshFolders,
 		dualPane,
 		drives,
@@ -1303,6 +1328,7 @@ export default function App() {
 				sidebarCollapsed={sidebarCollapsed}
 				showHidden={showHidden}
 				showFolderSizes={showFolderSizes}
+				showExtensions={showExtensions}
 				searchQuery={searchQuery}
 				focusSearchNonce={focusSearchNonce}
 				onBack={() => goHistory(-1)}
@@ -1317,6 +1343,7 @@ export default function App() {
 				onToggleSidebar={toggleSidebarCollapsed}
 				onToggleHidden={toggleHidden}
 				onToggleFolderSizes={toggleFolderSizes}
+				onToggleExtensions={toggleExtensions}
 				onViewMode={changeView}
 				onSearch={setSearchQuery}
 				onSettings={() => {
@@ -1481,6 +1508,8 @@ export default function App() {
 					onDesktopPrefs={changeDesktopPrefs}
 					autoRefreshFolders={autoRefreshFolders}
 					onAutoRefreshFolders={changeAutoRefreshFolders}
+					showExtensions={showExtensions}
+					onShowExtensions={changeShowExtensions}
 					appearance={appearance}
 					onAppearance={changeAppearance}
 					tagDefs={tagDefs}

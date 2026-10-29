@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react'
 import {api} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
+import {displayName} from '../../lib/names'
 import {sortEntries} from '../../lib/sort'
 import type {FileEntry, SortState, TagDef, TagMap} from '../../types/fs'
 import {FileIcon} from './FileIcon'
@@ -9,6 +10,7 @@ interface ColumnsViewProps {
 	locale: Locale
 	rootPath: string
 	showHidden: boolean
+	showExtensions?: boolean
 	selected: Set<string>
 	tagDefs: TagDef[]
 	tagMap: TagMap
@@ -34,6 +36,7 @@ export function ColumnsView({
 	locale,
 	rootPath,
 	showHidden,
+	showExtensions = true,
 	selected,
 	tagDefs,
 	tagMap,
@@ -133,7 +136,7 @@ export function ColumnsView({
 										<span
 											className={`min-w-0 flex-1 truncate ${entry.isDir ? 'font-semibold text-white' : 'text-[var(--xp-fg-dim)]'}`}
 										>
-											{entry.name}
+											{displayName(entry, showExtensions)}
 										</span>
 										{tags.length > 0 && (
 											<span className="flex gap-0.5">

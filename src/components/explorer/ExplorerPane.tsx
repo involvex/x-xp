@@ -49,6 +49,7 @@ interface ExplorerPaneProps {
 	reloadToken: number
 	showHidden: boolean
 	showFolderSizes: boolean
+	showExtensions: boolean
 	autoRefreshFolders: boolean
 	dualPane: boolean
 	drives: FileEntry[]
@@ -108,6 +109,7 @@ export function ExplorerPane({
 	reloadToken,
 	showHidden,
 	showFolderSizes,
+	showExtensions,
 	autoRefreshFolders,
 	dualPane,
 	drives,
@@ -512,6 +514,19 @@ export function ExplorerPane({
 		}
 	}
 
+	const doDeletePermanent = async () => {
+		const paths = [...selected]
+		if (paths.length === 0) return
+		if (!window.confirm(t('confirmDeletePermanent', locale))) return
+		try {
+			await api.deleteEntriesPermanent(paths)
+			setSelected(new Set())
+			await load(path)
+		} catch (e) {
+			onToast(String(e))
+		}
+	}
+
 	const doPaste = async () => {
 		if (atVirtual || !clipboard || clipboard.paths.length === 0) return
 		const jobId = newTransferJobId()
@@ -735,7 +750,7 @@ export function ExplorerPane({
 			}
 			if (e.key === 'Delete' && !atVirtual) {
 				e.preventDefault()
-				void doDelete()
+				void (e.shiftKey ? doDeletePermanent() : doDelete())
 			}
 			if (e.key === 'F2' && !atVirtual) {
 				e.preventDefault()
@@ -744,6 +759,20 @@ export function ExplorerPane({
 			if (e.ctrlKey && e.key.toLowerCase() === 'a' && !atVirtual) {
 				e.preventDefault()
 				setSelected(new Set(visible.map(x => x.path)))
+			}
+			if (
+				e.ctrlKey &&
+				!e.shiftKey &&
+				!e.altKey &&
+				e.key.toLowerCase() === 'i' &&
+				!atVirtual
+			) {
+				e.preventDefault()
+				setSelected(prev => {
+					const next = new Set<string>()
+					for (const x of visible) if (!prev.has(x.path)) next.add(x.path)
+					return next
+				})
 			}
 			if (e.ctrlKey && e.key.toLowerCase() === 'c' && !atVirtual) {
 				e.preventDefault()
@@ -936,6 +965,7 @@ export function ExplorerPane({
 					rootPath={path}
 					entries={visible}
 					selected={selected}
+					showExtensions={showExtensions}
 					searching={searching}
 					truncated={truncated}
 					cancelled={searchCancelled}
@@ -960,6 +990,7 @@ export function ExplorerPane({
 					locale={locale}
 					rootPath={path}
 					showHidden={showHidden}
+					showExtensions={showExtensions}
 					selected={selected}
 					tagDefs={tagDefs}
 					tagMap={tagMap}
@@ -993,6 +1024,7 @@ export function ExplorerPane({
 					tagMap={tagMap}
 					folderSizes={folderSizes}
 					showFolderSizes={showFolderSizes}
+					showExtensions={showExtensions}
 					onSort={toggleSort}
 					onRenameValue={setRenameValue}
 					onCommitRename={() => void commitRename()}
@@ -1152,6 +1184,9 @@ export function ExplorerPane({
 							return
 						case 'delete':
 							void doDelete()
+							break
+						case 'deletePermanent':
+							void doDeletePermanent()
 							break
 						case 'properties':
 							if (entry) setPropsEntry(entry)

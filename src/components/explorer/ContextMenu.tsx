@@ -438,7 +438,7 @@ export function ContextMenu({
 						<button
 							key={cfg.id}
 							type="button"
-							className={`${rowCls} ${action === 'delete' ? 'text-[var(--xp-danger)]' : ''}`}
+							className={`${rowCls} ${action === 'delete' || action === 'deletePermanent' ? 'text-[var(--xp-danger)]' : ''}`}
 							disabled={disabled}
 							onClick={() => {
 								setFlyout(null)

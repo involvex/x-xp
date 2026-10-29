@@ -12,6 +12,7 @@ interface ToolbarProps {
 	sidebarCollapsed: boolean
 	showHidden: boolean
 	showFolderSizes: boolean
+	showExtensions: boolean
 	searchQuery: string
 	/** Increment to focus the search field (Ctrl+F). */
 	focusSearchNonce?: number
@@ -27,6 +28,7 @@ interface ToolbarProps {
 	onToggleSidebar: () => void
 	onToggleHidden: () => void
 	onToggleFolderSizes: () => void
+	onToggleExtensions: () => void
 	onViewMode: (mode: ViewMode) => void
 	onSearch: (q: string) => void
 	onSettings: () => void
@@ -154,6 +156,14 @@ export function Toolbar(props: ToolbarProps) {
 				title={L('showFolderSizes')}
 			>
 				{L('showFolderSizes')}
+			</button>
+			<button
+				type="button"
+				className={`${btn} ${props.showExtensions ? 'ring-1 ring-[var(--xp-fg)]' : ''}`}
+				onClick={props.onToggleExtensions}
+				title={L('showFileExtensionsHint')}
+			>
+				{L('showFileExtensions')}
 			</button>
 			<select
 				className="rounded border border-[var(--xp-border)] bg-[var(--xp-panel)] px-2 py-1.5 text-sm"

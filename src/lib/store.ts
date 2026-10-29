@@ -275,6 +275,15 @@ export async function saveShowFolderSizes(value: boolean): Promise<void> {
 	await store.save()
 }
 
+export async function loadShowExtensions(): Promise<boolean> {
+	return (await store.get<boolean>('showExtensions')) ?? true
+}
+
+export async function saveShowExtensions(value: boolean): Promise<void> {
+	await store.set('showExtensions', value)
+	await store.save()
+}
+
 export async function loadAutoRefreshFolders(): Promise<boolean> {
 	return (await store.get<boolean>('autoRefreshFolders')) ?? true
 }

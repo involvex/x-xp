@@ -36,6 +36,8 @@ interface SettingsModalProps {
 	onDesktopPrefs: (p: DesktopPrefs) => void
 	autoRefreshFolders: boolean
 	onAutoRefreshFolders: (v: boolean) => void
+	showExtensions: boolean
+	onShowExtensions: (v: boolean) => void
 	appearance: UiAppearance
 	onAppearance: (a: UiAppearance) => void
 	tagDefs: TagDef[]
@@ -57,6 +59,8 @@ export function SettingsModal({
 	onDesktopPrefs,
 	autoRefreshFolders,
 	onAutoRefreshFolders,
+	showExtensions,
+	onShowExtensions,
 	appearance,
 	onAppearance,
 	tagDefs,
@@ -241,6 +245,21 @@ export function SettingsModal({
 									<span className="font-medium">{L('autoRefreshFolders')}</span>
 									<span className="mt-0.5 block text-xs opacity-70">
 										{L('autoRefreshFoldersHint')}
+									</span>
+								</span>
+							</label>
+
+							<label className="mb-4 flex cursor-pointer items-start gap-2 text-sm">
+								<input
+									type="checkbox"
+									className="mt-1"
+									checked={showExtensions}
+									onChange={e => onShowExtensions(e.target.checked)}
+								/>
+								<span>
+									<span className="font-medium">{L('showFileExtensions')}</span>
+									<span className="mt-0.5 block text-xs opacity-70">
+										{L('showFileExtensionsHint')}
 									</span>
 								</span>
 							</label>

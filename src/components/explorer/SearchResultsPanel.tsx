@@ -1,5 +1,6 @@
 import {formatSize} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
+import {displayName} from '../../lib/names'
 import type {FileEntry} from '../../types/fs'
 import {FileIcon} from './FileIcon'
 
@@ -9,6 +10,7 @@ interface SearchResultsPanelProps {
 	rootPath: string
 	entries: FileEntry[]
 	selected: Set<string>
+	showExtensions?: boolean
 	searching: boolean
 	truncated: boolean
 	cancelled: boolean
@@ -36,6 +38,7 @@ export function SearchResultsPanel({
 	rootPath,
 	entries,
 	selected,
+	showExtensions = true,
 	searching,
 	truncated,
 	cancelled,
@@ -121,7 +124,9 @@ export function SearchResultsPanel({
 							>
 								<FileIcon entry={entry} />
 								<div className="min-w-0 flex-1">
-									<div className="truncate font-medium">{entry.name}</div>
+									<div className="truncate font-medium">
+										{displayName(entry, showExtensions)}
+									</div>
 									<div
 										className="truncate text-xs opacity-50"
 										title={parent}

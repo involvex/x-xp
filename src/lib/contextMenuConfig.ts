@@ -15,6 +15,7 @@ export type BuiltinMenuAction =
 	| 'newFile'
 	| 'rename'
 	| 'delete'
+	| 'deletePermanent'
 	| 'properties'
 	| 'tags'
 	| 'extractHere'
@@ -141,6 +142,12 @@ export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
 	{id: 'newFile', action: 'newFile', enabled: true, when: 'any'},
 	{id: 'rename', action: 'rename', enabled: true, when: 'item'},
 	{id: 'delete', action: 'delete', enabled: true, when: 'item'},
+	{
+		id: 'deletePermanent',
+		action: 'deletePermanent',
+		enabled: true,
+		when: 'item',
+	},
 	{id: 'sep4', action: 'separator', enabled: true, when: 'item'},
 	{id: 'tags', action: 'tags', enabled: true, when: 'item'},
 	{id: 'whoIsLocking', action: 'whoIsLocking', enabled: true, when: 'item'},
@@ -223,6 +230,8 @@ export function actionLabelKey(action: BuiltinMenuAction): string | null {
 			return 'rename'
 		case 'delete':
 			return 'delete'
+		case 'deletePermanent':
+			return 'deletePermanent'
 		case 'properties':
 			return 'properties'
 		case 'tags':

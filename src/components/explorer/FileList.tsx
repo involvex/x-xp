@@ -1,5 +1,6 @@
 import {formatDate, formatSize} from '../../lib/api'
 import {t, type Locale} from '../../lib/i18n'
+import {displayName} from '../../lib/names'
 import type {
 	FileEntry,
 	SortKey,
@@ -26,6 +27,7 @@ interface FileListProps {
 	/** path → folder byte size when showFolderSizes is on */
 	folderSizes?: Record<string, number | null>
 	showFolderSizes?: boolean
+	showExtensions?: boolean
 	onSort: (key: SortKey) => void
 	onRenameValue: (v: string) => void
 	onCommitRename: () => void
@@ -90,6 +92,7 @@ export function FileList({
 	tagMap,
 	folderSizes = {},
 	showFolderSizes = false,
+	showExtensions = true,
 	onSort,
 	onRenameValue,
 	onCommitRename,
@@ -158,7 +161,9 @@ export function FileList({
 							entry={entry}
 							size={32}
 						/>
-						<span className="w-full truncate">{entry.name}</span>
+						<span className="w-full truncate">
+							{displayName(entry, showExtensions)}
+						</span>
 						<TagDots
 							path={entry.path}
 							tagDefs={tagDefs}
@@ -248,7 +253,7 @@ export function FileList({
 									<span
 										className={`truncate ${entry.isDir ? 'font-semibold text-white' : 'text-[var(--xp-fg-dim)]'} ${entry.hidden ? 'opacity-50' : ''}`}
 									>
-										{entry.name}
+										{displayName(entry, showExtensions)}
 									</span>
 								)}
 								<TagDots

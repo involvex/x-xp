@@ -16,6 +16,8 @@ export const api = {
 	renameEntry: (from: string, to: string) =>
 		invoke<FileEntry>('rename_entry', {from, to}),
 	deleteEntries: (paths: string[]) => invoke<void>('delete_entries', {paths}),
+	deleteEntriesPermanent: (paths: string[]) =>
+		invoke<void>('delete_entries_permanent', {paths}),
 	copyEntries: (sources: string[], destDir: string, jobId?: string) =>
 		invoke<FileEntry[]>('copy_entries', {
 			sources,

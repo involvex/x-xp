@@ -6,9 +6,9 @@ use commands::desktop::{
 	show_main_window, sync_tray_recents, toggle_main_window_cmd, DesktopState,
 };
 use commands::fs::{
-	copy_entries, create_dir, create_file, delete_entries, format_modified, get_drives,
-	get_entry_properties, get_folder_size, move_entries, open_in_new_window, open_path, open_with,
-	read_dir, read_text_preview, rename_entry,
+	copy_entries, create_dir, create_file, delete_entries, delete_entries_permanent,
+	format_modified, get_drives, get_entry_properties, get_folder_size, move_entries,
+	open_in_new_window, open_path, open_with, read_dir, read_text_preview, rename_entry,
 };
 use commands::path::{
 	get_home, get_known_folders, get_startup_path, parent_path, parse_startup_path,
@@ -67,6 +67,7 @@ pub fn run() {
 			create_file,
 			rename_entry,
 			delete_entries,
+			delete_entries_permanent,
 			copy_entries,
 			move_entries,
 			open_path,

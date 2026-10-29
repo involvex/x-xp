@@ -181,6 +181,52 @@ pub async fn delete_entries(paths: Vec<String>) -> Result<(), String> {
 	trash::delete_all(&path_bufs).map_err(|e| e.to_string())
 }
 
+/// Remove the read-only flag so Windows lets us delete the entry.
+fn clear_readonly(path: &Path) {
+	if let Ok(meta) = fs::metadata(path) {
+		let mut perms = meta.permissions();
+		if perms.readonly() {
+			#[allow(clippy::permissions_set_readonly_false)]
+			perms.set_readonly(false);
+			let _ = fs::set_permissions(path, perms);
+		}
+	}
+}
+
+fn remove_path_recursive(path: &Path) -> Result<(), String> {
+	if !path.exists() {
+		return Ok(());
+	}
+	let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+	if meta.is_dir() {
+		clear_readonly(path);
+		// Make sure nested read-only files can be removed too.
+		for entry in WalkDir::new(path)
+			.into_iter()
+			.filter_map(|e| e.ok())
+		{
+			clear_readonly(entry.path());
+		}
+		fs::remove_dir_all(path).map_err(|e| e.to_string())
+	} else {
+		clear_readonly(path);
+		fs::remove_file(path).map_err(|e| e.to_string())
+	}
+}
+
+/// Delete paths permanently, bypassing the Recycle Bin.
+#[tauri::command]
+pub async fn delete_entries_permanent(paths: Vec<String>) -> Result<(), String> {
+	tauri::async_runtime::spawn_blocking(move || {
+		for p in paths {
+			remove_path_recursive(Path::new(&p))?;
+		}
+		Ok(())
+	})
+	.await
+	.map_err(|e| e.to_string())?
+}
+
 fn unique_dest(dest_dir: &Path, name: &str) -> PathBuf {
 	let mut candidate = dest_dir.join(name);
 	if !candidate.exists() {

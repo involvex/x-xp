@@ -77,6 +77,10 @@ const strings = {
 		extractTo: 'Extract to…',
 		compressZip: 'Compress to zip',
 		showFolderSizes: 'Folder sizes',
+		showFileExtensions: 'File extensions',
+		showFileExtensionsHint:
+			'Hide the extension of known files (folders are unaffected).',
+		invertSelection: 'Invert selection',
 		autoRefreshFolders: 'Auto-refresh folders',
 		autoRefreshFoldersHint:
 			'Reload the listing when files change on disk (no F5 needed).',
@@ -113,7 +117,7 @@ const strings = {
 		startMinimized: 'Start minimized to tray',
 		shortcutCheatsheet: 'Keyboard shortcuts',
 		shortcutList:
-			'Ctrl+K palette · Ctrl+T/W tabs · Ctrl+Tab cycle tabs · F3 dual · F4/Space preview · Ctrl+Space Peek · Ctrl+B sidebar · Ctrl+/- zoom · F5 refresh · Alt+←/→ history · Alt+Home home · Ctrl+F search · Ctrl+L address · ↑↓/Home/End/PgUp/PgDn · type to jump · Ctrl+C/X/V · Ctrl+Z undo · Ctrl+Y redo · Ctrl+Shift+C copy path · F2 rename · Delete',
+			'Ctrl+K palette · Ctrl+T/W tabs · Ctrl+Tab cycle tabs · F3 dual · F4/Space preview · Ctrl+Space Peek · Ctrl+B sidebar · Ctrl+/- zoom · F5 refresh · Alt+←/→ history · Alt+Home home · Ctrl+F search · Ctrl+L address · ↑↓/Home/End/PgUp/PgDn · type to jump · Ctrl+A all · Ctrl+I invert · Ctrl+C/X/V · Ctrl+Z undo · Ctrl+Y redo · Ctrl+Shift+C copy path · F2 rename · Delete · Shift+Delete permanently',
 		contextMenu: 'Context menu',
 		openWithApps: 'Open with apps',
 		addOpenWith: 'Add app',
@@ -290,6 +294,10 @@ const strings = {
 		extractTo: 'Extrahieren nach…',
 		compressZip: 'Als ZIP komprimieren',
 		showFolderSizes: 'Ordnergrößen',
+		showFileExtensions: 'Dateiendungen',
+		showFileExtensionsHint:
+			'Endung bekannter Dateien ausblenden (Ordner sind nicht betroffen).',
+		invertSelection: 'Auswahl umkehren',
 		autoRefreshFolders: 'Ordner automatisch aktualisieren',
 		autoRefreshFoldersHint:
 			'Liste neu laden, wenn sich Dateien auf dem Datenträger ändern (ohne F5).',
@@ -325,7 +333,7 @@ const strings = {
 		startMinimized: 'Minimiert im Tray starten',
 		shortcutCheatsheet: 'Tastenkürzel',
 		shortcutList:
-			'Ctrl+K Palette · Ctrl+T/W Tabs · Ctrl+Tab Tabs wechseln · F3 Dual · F4/Leertaste Vorschau · Ctrl+Leertaste Peek · Ctrl+B Seitenleiste · Ctrl+/- Zoom · F5 Aktualisieren · Alt+←/→ Verlauf · Alt+Home Home · Ctrl+F Suche · Ctrl+L Adresse · ↑↓/Pos1/Ende/Bild↑↓ · Tippen zum Springen · Ctrl+C/X/V · Ctrl+Z Rückgängig · Ctrl+Y Wiederholen · Ctrl+Shift+C Pfad · F2 Umbenennen · Entf',
+			'Ctrl+K Palette · Ctrl+T/W Tabs · Ctrl+Tab Tabs wechseln · F3 Dual · F4/Leertaste Vorschau · Ctrl+Leertaste Peek · Ctrl+B Seitenleiste · Ctrl+/- Zoom · F5 Aktualisieren · Alt+←/→ Verlauf · Alt+Home Home · Ctrl+F Suche · Ctrl+L Adresse · ↑↓/Pos1/Ende/Bild↑↓ · Tippen zum Springen · Ctrl+A alles · Ctrl+I umkehren · Ctrl+C/X/V · Ctrl+Z Rückgängig · Ctrl+Y Wiederholen · Ctrl+Shift+C Pfad · F2 Umbenennen · Entf · Umschalt+Entf endgültig',
 		contextMenu: 'Kontextmenü',
 		openWithApps: 'Öffnen-mit-Apps',
 		addOpenWith: 'App hinzufügen',
