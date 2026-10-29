@@ -153,6 +153,7 @@ export function ExplorerPane({
 	const [locksmithPaths, setLocksmithPaths] = useState<string[] | null>(null)
 	const [renaming, setRenaming] = useState<string | null>(null)
 	const [renameValue, setRenameValue] = useState('')
+	const [quickFilter, setQuickFilter] = useState('')
 	const [searchEntries, setSearchEntries] = useState<FileEntry[] | null>(null)
 	const [truncated, setTruncated] = useState(false)
 	const [searching, setSearching] = useState(false)
@@ -337,6 +338,10 @@ export function ExplorerPane({
 				(tagMap[e.path] ?? []).includes(tagFilter),
 			)
 		}
+		if (!searchActive && quickFilter.trim()) {
+			const q = quickFilter.trim().toLowerCase()
+			filtered = filtered.filter(e => e.name.toLowerCase().includes(q))
+		}
 		return searchActive ? filtered : sortEntries(filtered, sort)
 	}, [
 		searchActive,
@@ -346,6 +351,7 @@ export function ExplorerPane({
 		showHidden,
 		tagFilter,
 		tagMap,
+		quickFilter,
 	])
 
 	const selectedEntries = useMemo(
@@ -754,6 +760,16 @@ export function ExplorerPane({
 				e.preventDefault()
 				startRename()
 			}
+			if (
+				e.ctrlKey &&
+				e.shiftKey &&
+				e.key.toLowerCase() === 'f' &&
+				!atVirtual
+			) {
+				e.preventDefault()
+				setQuickFilter(v => (v ? '' : ''))
+				return
+			}
 			if (e.ctrlKey && e.key.toLowerCase() === 'a' && !atVirtual) {
 				e.preventDefault()
 				setSelected(new Set(visible.map(x => x.path)))
@@ -914,6 +930,30 @@ export function ExplorerPane({
 			onDragOver={onDragOverPane}
 			onDrop={onDropOnPane}
 		>
+			{quickFilter && (
+				<div className="flex items-center gap-2 border-b border-[var(--xp-border)] px-3 py-1">
+					<input
+						className="flex-1 rounded border border-[var(--xp-border)] bg-[var(--xp-bg)] px-2 py-1 text-xs outline-none"
+						value={quickFilter}
+						onChange={e => setQuickFilter(e.target.value)}
+						placeholder="Filter..."
+						autoFocus
+						onKeyDown={e => {
+							if (e.key === 'Escape') {
+								e.preventDefault()
+								setQuickFilter('')
+							}
+						}}
+					/>
+					<button
+						type="button"
+						className="text-xs opacity-60 hover:opacity-100"
+						onClick={() => setQuickFilter('')}
+					>
+						×
+					</button>
+				</div>
+			)}
 			{loading && <div className="px-3 py-1 text-xs opacity-50">Loading…</div>}
 			{loadError && !loading ? (
 				<div className="mx-3 my-2 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
