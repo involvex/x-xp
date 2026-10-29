@@ -11,6 +11,8 @@ export type BuiltinMenuAction =
 	| 'cut'
 	| 'copy'
 	| 'paste'
+	| 'selectAll'
+	| 'invertSelection'
 	| 'newFolder'
 	| 'newFile'
 	| 'rename'
@@ -133,6 +135,13 @@ export const DEFAULT_MENU_ITEMS: ContextMenuItemConfig[] = [
 	{id: 'cut', action: 'cut', enabled: true, when: 'item'},
 	{id: 'copy', action: 'copy', enabled: true, when: 'item'},
 	{id: 'paste', action: 'paste', enabled: true, when: 'any'},
+	{id: 'selectAll', action: 'selectAll', enabled: true, when: 'any'},
+	{
+		id: 'invertSelection',
+		action: 'invertSelection',
+		enabled: true,
+		when: 'any',
+	},
 	{id: 'sep3', action: 'separator', enabled: true, when: 'any'},
 	{id: 'extractHere', action: 'extractHere', enabled: true, when: 'archive'},
 	{id: 'extractTo', action: 'extractTo', enabled: true, when: 'archive'},
@@ -222,6 +231,10 @@ export function actionLabelKey(action: BuiltinMenuAction): string | null {
 			return 'copy'
 		case 'paste':
 			return 'paste'
+		case 'selectAll':
+			return 'selectAll'
+		case 'invertSelection':
+			return 'invertSelection'
 		case 'newFolder':
 			return 'newFolder'
 		case 'newFile':

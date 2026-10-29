@@ -1188,6 +1188,16 @@ export function ExplorerPane({
 						case 'deletePermanent':
 							void doDeletePermanent()
 							break
+						case 'selectAll':
+							setSelected(new Set(visible.map(x => x.path)))
+							break
+						case 'invertSelection':
+							setSelected(prev => {
+								const next = new Set<string>()
+								for (const x of visible) if (!prev.has(x.path)) next.add(x.path)
+								return next
+							})
+							break
 						case 'properties':
 							if (entry) setPropsEntry(entry)
 							break

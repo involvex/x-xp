@@ -80,6 +80,7 @@ const strings = {
 		showFileExtensions: 'File extensions',
 		showFileExtensionsHint:
 			'Hide the extension of known files (folders are unaffected).',
+		selectAll: 'Select all',
 		invertSelection: 'Invert selection',
 		autoRefreshFolders: 'Auto-refresh folders',
 		autoRefreshFoldersHint:
@@ -297,6 +298,7 @@ const strings = {
 		showFileExtensions: 'Dateiendungen',
 		showFileExtensionsHint:
 			'Endung bekannter Dateien ausblenden (Ordner sind nicht betroffen).',
+		selectAll: 'Alles auswählen',
 		invertSelection: 'Auswahl umkehren',
 		autoRefreshFolders: 'Ordner automatisch aktualisieren',
 		autoRefreshFoldersHint:
