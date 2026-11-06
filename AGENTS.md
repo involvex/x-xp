@@ -15,42 +15,43 @@ This document provides instructions for AI agents working on the x-xp codebase. 
 
 ### Development
 
-| Command | Purpose |
-| --- | --- |
-| `bun install` | Install dependencies |
-| `bun run dev` | Start Vite dev server only (frontend) |
+| Command             | Purpose                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `bun install`       | Install dependencies                                               |
+| `bun run dev`       | Start Vite dev server only (frontend)                              |
 | `bun run tauri:dev` | Start full Tauri app in development mode (frontend + Rust backend) |
-| `bun run preview` | Preview built frontend with Vite |
+| `bun run preview`   | Preview built frontend with Vite                                   |
 
 ### Building
 
-| Command | Purpose |
-| --- | --- |
-| `bun run build` | Build frontend only (TypeScript check + Vite build) |
-| `bun run tauri:build` | Build full production app (MSI/NSIS installer) |
-| `bun run prebuild` | Pre-build hook (runs check + lint) |
+| Command               | Purpose                                             |
+| --------------------- | --------------------------------------------------- |
+| `bun run build`       | Build frontend only (TypeScript check + Vite build) |
+| `bun run tauri:build` | Build full production app (MSI/NSIS installer)      |
+| `bun run prebuild`    | Pre-build hook (runs check + lint)                  |
 
 ### Code Quality
 
-| Command | Purpose |
-| --- | --- |
-| `bun run check` | Type check with TypeScript (`tsc --noEmit`) |
-| `bun run lint` | Lint with ESLint and auto-fix (`eslint src --fix`) |
-| `bun run format` | Format code with Prettier |
-| `bun run format:check` | Check formatting without modifying files |
+| Command                | Purpose                                            |
+| ---------------------- | -------------------------------------------------- |
+| `bun run check`        | Type check with TypeScript (`tsc --noEmit`)        |
+| `bun run lint`         | Lint with ESLint and auto-fix (`eslint src --fix`) |
+| `bun run format`       | Format code with Prettier                          |
+| `bun run format:check` | Check formatting without modifying files           |
 
 ### CLI
 
-| Command | Purpose |
-| --- | --- |
-| `bun link` | Link the CLI tool globally |
+| Command                   | Purpose                                                     |
+| ------------------------- | ----------------------------------------------------------- |
+| `bun link`                | Link the CLI tool globally                                  |
 | `x-xp .` or `x-xp <path>` | Open a path in x-xp from terminal (resolves relative paths) |
 
-*Note:* Override binary discovery with `X_XP_BIN` environment variable if needed.
+_Note:_ Override binary discovery with `X_XP_BIN` environment variable if needed.
 
 ## Technologies
 
 ### Frontend
+
 - **[React](https://react.dev/)** ^19.1.0 - UI framework with modern hooks
 - **[TypeScript](https://www.typescriptlang.org/)** ~6.0.3 - Type-safe JavaScript
 - **[Vite](https://vitejs.dev/)** ^8.0.16 - Build tool and dev server
@@ -58,6 +59,7 @@ This document provides instructions for AI agents working on the x-xp codebase. 
 - **[@tailwindcss/vite](https://tailwindcss.com/docs/installation/using-vite)** - Vite plugin for Tailwind v4
 
 ### Backend (Tauri/Rust)
+
 - **[Tauri](https://v2.tauri.app/)** ^2 - Desktop app framework
 - **[Rust](https://www.rust-lang.org/)** - Backend language for native operations
 - Key Tauri plugins:
@@ -68,6 +70,7 @@ This document provides instructions for AI agents working on the x-xp codebase. 
   - `@tauri-apps/plugin-window-state` ^2.5.0 - Window state persistence
 
 ### Build & Dev Tools
+
 - **[Bun](https://bun.sh/)** - Package manager and runtime (required)
 - **[ESLint](https://eslint.org/)** ^10.13.0 - Linting
 - **[Prettier](https://prettier.io/)** ^3.9.10 - Code formatting
