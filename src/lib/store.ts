@@ -1,16 +1,18 @@
 import {LazyStore} from '@tauri-apps/plugin-store'
-import type {
-	Bookmark,
-	ExplorerTab,
-	KnownFolder,
-	QuickAccessPrefs,
-	SessionSnapshot,
-	SortDir,
-	SortKey,
-	SortState,
-	TagDef,
-	TagMap,
-	ViewMode,
+import {
+	DEFAULT_SIDEBAR_SECTION_ORDER,
+	type Bookmark,
+	type ExplorerTab,
+	type KnownFolder,
+	type QuickAccessPrefs,
+	type SessionSnapshot,
+	type SidebarSectionId,
+	type SortDir,
+	type SortKey,
+	type SortState,
+	type TagDef,
+	type TagMap,
+	type ViewMode,
 } from '../types/fs'
 import {
 	mergeContextMenuSettings,
@@ -164,6 +166,37 @@ export async function loadSidebarCollapsed(): Promise<boolean> {
 
 export async function saveSidebarCollapsed(value: boolean): Promise<void> {
 	await store.set('sidebarCollapsed', value)
+	await store.save()
+}
+
+export function sanitizeSidebarSectionOrder(raw: unknown): SidebarSectionId[] {
+	const known = new Set<string>(DEFAULT_SIDEBAR_SECTION_ORDER)
+	const seen = new Set<SidebarSectionId>()
+	const out: SidebarSectionId[] = []
+	if (Array.isArray(raw)) {
+		for (const id of raw) {
+			if (typeof id !== 'string' || !known.has(id)) continue
+			const section = id as SidebarSectionId
+			if (seen.has(section)) continue
+			seen.add(section)
+			out.push(section)
+		}
+	}
+	for (const id of DEFAULT_SIDEBAR_SECTION_ORDER) {
+		if (!seen.has(id)) out.push(id)
+	}
+	return out
+}
+
+export async function loadSidebarSectionOrder(): Promise<SidebarSectionId[]> {
+	const v = await store.get<unknown>('sidebarSectionOrder')
+	return sanitizeSidebarSectionOrder(v)
+}
+
+export async function saveSidebarSectionOrder(
+	order: SidebarSectionId[],
+): Promise<void> {
+	await store.set('sidebarSectionOrder', sanitizeSidebarSectionOrder(order))
 	await store.save()
 }
 

@@ -58,6 +58,7 @@ const strings = {
 		addBookmark: 'Add bookmark',
 		removeBookmark: 'Remove bookmark',
 		reorderBookmark: 'Drag to reorder',
+		reorderSection: 'Drag section to reorder',
 		editBookmarkHint: 'Double-click or ✎ to rename',
 		bookmarkDragHint: 'Star a folder, then drag to reorder',
 		hideQuickAccess: 'Hide from Quick access',
@@ -127,7 +128,7 @@ const strings = {
 		startMinimized: 'Start minimized to tray',
 		shortcutCheatsheet: 'Keyboard shortcuts',
 		shortcutList:
-			'Ctrl+K palette · Ctrl+T/W tabs · Ctrl+Tab cycle tabs · F3 dual · F4/Space preview · Ctrl+Space Peek · Ctrl+B sidebar · Ctrl+/- zoom · F5 refresh · Alt+←/→ history · Alt+Home home · Ctrl+F search · Ctrl+L address · ↑↓/Home/End/PgUp/PgDn · type to jump · Ctrl+A all · Ctrl+I invert · Ctrl+C/X/V · Ctrl+Z undo · Ctrl+Y redo · Ctrl+Shift+C copy path · F2 rename · Delete · Shift+Delete permanently',
+			'Ctrl+K palette · Ctrl+T/W tabs · Ctrl+Tab cycle tabs · F3 dual · F4/Space preview · Ctrl+Space Peek · Ctrl+B sidebar · Ctrl+/- zoom · F5 refresh · Alt+←/→ or Mouse 4/5 history · Alt+Home home · Ctrl+F search · Ctrl+L address · ↑↓/Home/End/PgUp/PgDn · type to jump · Ctrl+A all · Ctrl+I invert · Ctrl+C/X/V · Ctrl+Z undo · Ctrl+Y redo · Ctrl+Shift+C copy path · F2 rename · Delete · Shift+Delete permanently',
 		contextMenu: 'Context menu',
 		openWithApps: 'Open with apps',
 		addOpenWith: 'Add app',
@@ -285,6 +286,7 @@ const strings = {
 		addBookmark: 'Lesezeichen hinzufügen',
 		removeBookmark: 'Lesezeichen entfernen',
 		reorderBookmark: 'Ziehen zum Sortieren',
+		reorderSection: 'Abschnitt ziehen zum Sortieren',
 		editBookmarkHint: 'Doppelklick oder ✎ zum Umbenennen',
 		bookmarkDragHint: 'Ordner mit ★ merken, dann ziehen',
 		hideQuickAccess: 'Aus Schnellzugriff ausblenden',
@@ -353,7 +355,7 @@ const strings = {
 		startMinimized: 'Minimiert im Tray starten',
 		shortcutCheatsheet: 'Tastenkürzel',
 		shortcutList:
-			'Ctrl+K Palette · Ctrl+T/W Tabs · Ctrl+Tab Tabs wechseln · F3 Dual · F4/Leertaste Vorschau · Ctrl+Leertaste Peek · Ctrl+B Seitenleiste · Ctrl+/- Zoom · F5 Aktualisieren · Alt+←/→ Verlauf · Alt+Home Home · Ctrl+F Suche · Ctrl+L Adresse · ↑↓/Pos1/Ende/Bild↑↓ · Tippen zum Springen · Ctrl+A alles · Ctrl+I umkehren · Ctrl+C/X/V · Ctrl+Z Rückgängig · Ctrl+Y Wiederholen · Ctrl+Shift+C Pfad · F2 Umbenennen · Entf · Umschalt+Entf endgültig',
+			'Ctrl+K Palette · Ctrl+T/W Tabs · Ctrl+Tab Tabs wechseln · F3 Dual · F4/Leertaste Vorschau · Ctrl+Leertaste Peek · Ctrl+B Seitenleiste · Ctrl+/- Zoom · F5 Aktualisieren · Alt+←/→ oder Maus 4/5 Verlauf · Alt+Home Home · Ctrl+F Suche · Ctrl+L Adresse · ↑↓/Pos1/Ende/Bild↑↓ · Tippen zum Springen · Ctrl+A alles · Ctrl+I umkehren · Ctrl+C/X/V · Ctrl+Z Rückgängig · Ctrl+Y Wiederholen · Ctrl+Shift+C Pfad · F2 Umbenennen · Entf · Umschalt+Entf endgültig',
 		contextMenu: 'Kontextmenü',
 		openWithApps: 'Öffnen-mit-Apps',
 		addOpenWith: 'App hinzufügen',

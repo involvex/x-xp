@@ -57,6 +57,7 @@ import {
 	loadShowHidden,
 	loadShowPreview,
 	loadSidebarCollapsed,
+	loadSidebarSectionOrder,
 	loadSidebarWidth,
 	loadTagDefs,
 	loadTagMap,
@@ -82,6 +83,7 @@ import {
 	saveShowHidden,
 	saveShowPreview,
 	saveSidebarCollapsed,
+	saveSidebarSectionOrder,
 	saveSidebarWidth,
 	saveTagDefs,
 	saveTagMap,
@@ -109,17 +111,19 @@ import {
 	type UndoAction,
 } from './lib/undo'
 import {APP_VERSION} from './lib/version'
-import type {
-	Bookmark,
-	ClipboardState,
-	ExplorerTab,
-	FileEntry,
-	KnownFolder,
-	QuickAccessPrefs,
-	SortState,
-	TagDef,
-	TagMap,
-	ViewMode,
+import {
+	DEFAULT_SIDEBAR_SECTION_ORDER,
+	type Bookmark,
+	type ClipboardState,
+	type ExplorerTab,
+	type FileEntry,
+	type KnownFolder,
+	type QuickAccessPrefs,
+	type SidebarSectionId,
+	type SortState,
+	type TagDef,
+	type TagMap,
+	type ViewMode,
 } from './types/fs'
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -187,6 +191,9 @@ export default function App() {
 	const [previewWidth, setPreviewWidth] = useState(PREVIEW_WIDTH_DEFAULT)
 	const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH_DEFAULT)
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+	const [sidebarSectionOrder, setSidebarSectionOrder] = useState<
+		SidebarSectionId[]
+	>(DEFAULT_SIDEBAR_SECTION_ORDER)
 	const [appearance, setAppearance] =
 		useState<UiAppearance>(defaultUiAppearance)
 	const [snapSide, setSnapSide] = useState<'left' | 'right' | null>(null)
@@ -378,6 +385,7 @@ export default function App() {
 					previewW,
 					sidebarW,
 					sidebarCollapsedOn,
+					sidebarSections,
 					uiAppearance,
 					toolsOn,
 					hidden,
@@ -406,6 +414,7 @@ export default function App() {
 					loadPreviewWidth(),
 					loadSidebarWidth(),
 					loadSidebarCollapsed(),
+					loadSidebarSectionOrder(),
 					loadUiAppearance(),
 					loadToolPaths(),
 					loadShowHidden(),
@@ -435,6 +444,7 @@ export default function App() {
 				setPreviewWidth(previewW)
 				setSidebarWidth(sidebarW)
 				setSidebarCollapsed(sidebarCollapsedOn)
+				setSidebarSectionOrder(sidebarSections)
 				setAppearance(uiAppearance)
 				applyUiAppearance(uiAppearance)
 				setToolPaths(toolsOn)
@@ -727,8 +737,26 @@ export default function App() {
 				if (canForward) goHistory(1)
 			}
 		}
+		const onMouseSide = (e: MouseEvent) => {
+			if (e.button !== 3 && e.button !== 4) return
+			// Stop WebView2 from treating X1/X2 as browser history
+			e.preventDefault()
+			if (e.type !== 'mouseup' || isTypingTarget(e.target)) return
+			// Mouse 4 (X1 / Back) → button 3; Mouse 5 (X2 / Forward) → button 4
+			if (e.button === 3) {
+				if (canBack) goHistory(-1)
+			} else if (canForward) {
+				goHistory(1)
+			}
+		}
 		window.addEventListener('keydown', onKey)
-		return () => window.removeEventListener('keydown', onKey)
+		window.addEventListener('mousedown', onMouseSide)
+		window.addEventListener('mouseup', onMouseSide)
+		return () => {
+			window.removeEventListener('keydown', onKey)
+			window.removeEventListener('mousedown', onMouseSide)
+			window.removeEventListener('mouseup', onMouseSide)
+		}
 	})
 
 	const closeTab = (id: string) => {
@@ -967,6 +995,23 @@ export default function App() {
 		next.splice(toIndex, 0, moved)
 		setBookmarks(next)
 		await saveBookmarks(next)
+	}
+
+	const reorderSidebarSections = async (fromIndex: number, toIndex: number) => {
+		if (
+			fromIndex < 0 ||
+			toIndex < 0 ||
+			fromIndex >= sidebarSectionOrder.length ||
+			toIndex >= sidebarSectionOrder.length ||
+			fromIndex === toIndex
+		) {
+			return
+		}
+		const next = [...sidebarSectionOrder]
+		const [moved] = next.splice(fromIndex, 1)
+		next.splice(toIndex, 0, moved)
+		setSidebarSectionOrder(next)
+		await saveSidebarSectionOrder(next)
 	}
 
 	const updateQaPrefs = async (next: QuickAccessPrefs) => {
@@ -1415,6 +1460,10 @@ export default function App() {
 					currentPath={currentPath}
 					menuSettings={menuSettings}
 					toolPaths={toolPaths}
+					sectionOrder={sidebarSectionOrder}
+					onReorderSections={(from, to) =>
+						void reorderSidebarSections(from, to)
+					}
 					onNavigate={navigateActive}
 					onRemoveBookmark={id => void removeBookmark(id)}
 					onRenameBookmark={(id, label) => void renameBookmark(id, label)}

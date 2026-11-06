@@ -18,7 +18,14 @@ import {
 	SIDEBAR_WIDTH_MIN,
 	type ToolPaths,
 } from '../../lib/store'
-import type {Bookmark, FileEntry, KnownFolder, TagDef} from '../../types/fs'
+import {
+	DEFAULT_SIDEBAR_SECTION_ORDER,
+	type Bookmark,
+	type FileEntry,
+	type KnownFolder,
+	type SidebarSectionId,
+	type TagDef,
+} from '../../types/fs'
 import {
 	ContextMenu,
 	type ContextMenuState,
@@ -29,6 +36,7 @@ import {PropertiesModal} from './PropertiesModal'
 
 const BM_DND = 'application/x-xp-bookmark-index'
 const QA_DND = 'application/x-xp-quickaccess-index'
+const SECTION_DND = 'application/x-xp-sidebar-section-index'
 
 interface SidebarProps {
 	locale: Locale
@@ -40,6 +48,8 @@ interface SidebarProps {
 	currentPath: string
 	menuSettings: ContextMenuSettings
 	toolPaths: ToolPaths
+	sectionOrder?: SidebarSectionId[]
+	onReorderSections?: (fromIndex: number, toIndex: number) => void
 	onNavigate: (path: string) => void
 	onRemoveBookmark: (id: string) => void
 	onRenameBookmark: (id: string, label: string) => void
@@ -58,6 +68,16 @@ interface SidebarProps {
 	onWidthChange?: (width: number) => void
 	onWidthCommit?: (width: number) => void
 	onToggleCollapsed?: () => void
+}
+
+const SECTION_TITLE_KEY: Record<
+	SidebarSectionId,
+	'quickAccess' | 'drives' | 'tags' | 'bookmarks'
+> = {
+	quickAccess: 'quickAccess',
+	drives: 'drives',
+	tags: 'tags',
+	bookmarks: 'bookmarks',
 }
 
 type EditTarget =
@@ -86,6 +106,8 @@ export function Sidebar({
 	currentPath,
 	menuSettings,
 	toolPaths,
+	sectionOrder = DEFAULT_SIDEBAR_SECTION_ORDER,
+	onReorderSections,
 	onNavigate,
 	onRemoveBookmark,
 	onRenameBookmark,
@@ -112,6 +134,8 @@ export function Sidebar({
 	const [bmDrop, setBmDrop] = useState<number | null>(null)
 	const [qaDrag, setQaDrag] = useState<number | null>(null)
 	const [qaDrop, setQaDrop] = useState<number | null>(null)
+	const [sectionDrag, setSectionDrag] = useState<number | null>(null)
+	const [sectionDrop, setSectionDrop] = useState<number | null>(null)
 	const [menu, setMenu] = useState<ContextMenuState | null>(null)
 	const [propsEntry, setPropsEntry] = useState<FileEntry | null>(null)
 	const [locksmithPaths, setLocksmithPaths] = useState<string[] | null>(null)
@@ -415,282 +439,357 @@ export function Sidebar({
 					</button>
 				) : null}
 			</section>
-			<section>
-				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
-					{L('quickAccess')}
-				</h2>
-				{known.length === 0 && (
-					<p className="px-2 text-xs opacity-40">{L('bookmarkDragHint')}</p>
-				)}
-				{known.map((f, index) => {
-					const isDropTarget = qaDrop === index && qaDrag !== index
-					return (
-						<div
-							key={f.id}
-							draggable={!isEditing('quick', f.id)}
-							className={`group flex items-center gap-0.5 rounded ${
-								isDropTarget ? 'ring-1 ring-[var(--xp-fg)]' : ''
-							} ${qaDrag === index ? 'opacity-40' : ''}`}
-							onDragStart={e => {
-								e.dataTransfer.setData(QA_DND, String(index))
-								setNavDragData(e.dataTransfer, f.path)
-								e.dataTransfer.effectAllowed = 'copyMove'
-								setQaDrag(index)
-							}}
-							onDragEnd={() => {
-								setQaDrag(null)
-								setQaDrop(null)
-							}}
-							onDragOver={e => {
-								if (![...e.dataTransfer.types].includes(QA_DND)) return
-								e.preventDefault()
-								e.stopPropagation()
-								e.dataTransfer.dropEffect = 'move'
-								setQaDrop(index)
-							}}
-							onDragLeave={() => {
-								setQaDrop(prev => (prev === index ? null : prev))
-							}}
-							onDrop={e => {
-								const raw = e.dataTransfer.getData(QA_DND)
-								if (!raw) return
-								e.preventDefault()
-								e.stopPropagation()
-								const from = Number.parseInt(raw, 10)
-								setQaDrag(null)
-								setQaDrop(null)
-								if (Number.isFinite(from) && from !== index) {
-									onReorderQuickAccess(from, index)
-								}
-							}}
-							onContextMenu={e => openCtx(e, f.path, 'quick', f.id)}
-						>
+			{sectionOrder.map((sectionId, sectionIndex) => {
+				const isSectionDrop =
+					sectionDrop === sectionIndex && sectionDrag !== sectionIndex
+				const header = (
+					<div
+						className={`mb-1 flex items-center gap-0.5 rounded px-0.5 ${
+							isSectionDrop ? 'ring-1 ring-[var(--xp-fg)]' : ''
+						} ${sectionDrag === sectionIndex ? 'opacity-40' : ''}`}
+						draggable={!!onReorderSections}
+						onDragStart={e => {
+							if (!onReorderSections) return
+							e.dataTransfer.setData(SECTION_DND, String(sectionIndex))
+							e.dataTransfer.effectAllowed = 'move'
+							setSectionDrag(sectionIndex)
+						}}
+						onDragEnd={() => {
+							setSectionDrag(null)
+							setSectionDrop(null)
+						}}
+						onDragOver={e => {
+							if (![...e.dataTransfer.types].includes(SECTION_DND)) return
+							e.preventDefault()
+							e.stopPropagation()
+							e.dataTransfer.dropEffect = 'move'
+							setSectionDrop(sectionIndex)
+						}}
+						onDragLeave={() => {
+							setSectionDrop(prev => (prev === sectionIndex ? null : prev))
+						}}
+						onDrop={e => {
+							const raw = e.dataTransfer.getData(SECTION_DND)
+							if (!raw) return
+							e.preventDefault()
+							e.stopPropagation()
+							const from = Number.parseInt(raw, 10)
+							setSectionDrag(null)
+							setSectionDrop(null)
+							if (
+								onReorderSections &&
+								Number.isFinite(from) &&
+								from !== sectionIndex
+							) {
+								onReorderSections(from, sectionIndex)
+							}
+						}}
+					>
+						{onReorderSections ? (
 							<span
-								className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
-								title={L('reorderBookmark')}
+								className="cursor-grab px-0.5 text-xs opacity-30 hover:opacity-70 active:cursor-grabbing"
+								title={L('reorderSection')}
 								aria-hidden
 							>
 								⋮⋮
 							</span>
-							{isEditing('quick', f.id) ? (
-								<input
-									autoFocus
-									value={editValue}
-									onChange={e => setEditValue(e.target.value)}
-									onBlur={commitEdit}
-									onKeyDown={e => {
-										if (e.key === 'Enter') commitEdit()
-										if (e.key === 'Escape') setEditing(null)
-									}}
-									onClick={e => e.stopPropagation()}
-									className="min-w-0 flex-1 rounded border border-[var(--xp-fg)] bg-[var(--xp-bg)] px-1.5 py-1 text-sm outline-none"
-								/>
-							) : (
-								<button
-									type="button"
-									className={`${item(currentPath === f.path)} flex-1`}
-									onClick={() => onNavigate(f.path)}
-									onDoubleClick={e => {
-										e.preventDefault()
-										e.stopPropagation()
-										startEdit('quick', f.id, f.label)
-									}}
-									title={`${f.path}\n${L('editBookmarkHint')}`}
-								>
-									{f.label}
-								</button>
+						) : null}
+						<h2 className="flex-1 px-1 text-xs uppercase tracking-wide opacity-50">
+							{L(SECTION_TITLE_KEY[sectionId])}
+						</h2>
+					</div>
+				)
+
+				if (sectionId === 'quickAccess') {
+					return (
+						<section key={sectionId}>
+							{header}
+							{known.length === 0 && (
+								<p className="px-2 text-xs opacity-40">
+									{L('bookmarkDragHint')}
+								</p>
 							)}
-							<button
-								type="button"
-								className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
-								onClick={e => {
-									e.stopPropagation()
-									startEdit('quick', f.id, f.label)
-								}}
-								title={L('rename')}
-							>
-								✎
-							</button>
-							<button
-								type="button"
-								className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
-								onClick={() => onHideQuickAccess(f.id)}
-								title={L('hideQuickAccess')}
-							>
-								×
-							</button>
-						</div>
+							{known.map((f, index) => {
+								const isDropTarget = qaDrop === index && qaDrag !== index
+								return (
+									<div
+										key={f.id}
+										draggable={!isEditing('quick', f.id)}
+										className={`group flex items-center gap-0.5 rounded ${
+											isDropTarget ? 'ring-1 ring-[var(--xp-fg)]' : ''
+										} ${qaDrag === index ? 'opacity-40' : ''}`}
+										onDragStart={e => {
+											e.dataTransfer.setData(QA_DND, String(index))
+											setNavDragData(e.dataTransfer, f.path)
+											e.dataTransfer.effectAllowed = 'copyMove'
+											setQaDrag(index)
+										}}
+										onDragEnd={() => {
+											setQaDrag(null)
+											setQaDrop(null)
+										}}
+										onDragOver={e => {
+											if (![...e.dataTransfer.types].includes(QA_DND)) return
+											e.preventDefault()
+											e.stopPropagation()
+											e.dataTransfer.dropEffect = 'move'
+											setQaDrop(index)
+										}}
+										onDragLeave={() => {
+											setQaDrop(prev => (prev === index ? null : prev))
+										}}
+										onDrop={e => {
+											const raw = e.dataTransfer.getData(QA_DND)
+											if (!raw) return
+											e.preventDefault()
+											e.stopPropagation()
+											const from = Number.parseInt(raw, 10)
+											setQaDrag(null)
+											setQaDrop(null)
+											if (Number.isFinite(from) && from !== index) {
+												onReorderQuickAccess(from, index)
+											}
+										}}
+										onContextMenu={e => openCtx(e, f.path, 'quick', f.id)}
+									>
+										<span
+											className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
+											title={L('reorderBookmark')}
+											aria-hidden
+										>
+											⋮⋮
+										</span>
+										{isEditing('quick', f.id) ? (
+											<input
+												autoFocus
+												value={editValue}
+												onChange={e => setEditValue(e.target.value)}
+												onBlur={commitEdit}
+												onKeyDown={e => {
+													if (e.key === 'Enter') commitEdit()
+													if (e.key === 'Escape') setEditing(null)
+												}}
+												onClick={e => e.stopPropagation()}
+												className="min-w-0 flex-1 rounded border border-[var(--xp-fg)] bg-[var(--xp-bg)] px-1.5 py-1 text-sm outline-none"
+											/>
+										) : (
+											<button
+												type="button"
+												className={`${item(currentPath === f.path)} flex-1`}
+												onClick={() => onNavigate(f.path)}
+												onDoubleClick={e => {
+													e.preventDefault()
+													e.stopPropagation()
+													startEdit('quick', f.id, f.label)
+												}}
+												title={`${f.path}\n${L('editBookmarkHint')}`}
+											>
+												{f.label}
+											</button>
+										)}
+										<button
+											type="button"
+											className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
+											onClick={e => {
+												e.stopPropagation()
+												startEdit('quick', f.id, f.label)
+											}}
+											title={L('rename')}
+										>
+											✎
+										</button>
+										<button
+											type="button"
+											className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
+											onClick={() => onHideQuickAccess(f.id)}
+											title={L('hideQuickAccess')}
+										>
+											×
+										</button>
+									</div>
+								)
+							})}
+						</section>
 					)
-				})}
-			</section>
-			<section>
-				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
-					{L('drives')}
-				</h2>
-				{drives.map(d => (
-					<button
-						key={d.path}
-						type="button"
-						className={item(
-							!isHomePath(currentPath) &&
-								!isRecyclePath(currentPath) &&
-								currentPath.toLowerCase().startsWith(d.path.toLowerCase()),
+				}
+
+				if (sectionId === 'drives') {
+					return (
+						<section key={sectionId}>
+							{header}
+							{drives.map(d => (
+								<button
+									key={d.path}
+									type="button"
+									className={item(
+										!isHomePath(currentPath) &&
+											!isRecyclePath(currentPath) &&
+											currentPath
+												.toLowerCase()
+												.startsWith(d.path.toLowerCase()),
+									)}
+									onClick={() => onNavigate(d.path)}
+									onContextMenu={e => openCtx(e, d.path, 'drive')}
+									draggable
+									onDragStart={e => setNavDragData(e.dataTransfer, d.path)}
+								>
+									{d.name}
+								</button>
+							))}
+							<button
+								type="button"
+								className={item(isRecyclePath(currentPath))}
+								onClick={() => onNavigate(RECYCLE_PATH)}
+								onContextMenu={e => openCtx(e, RECYCLE_PATH, 'recycle')}
+								draggable
+								onDragStart={e => setNavDragData(e.dataTransfer, RECYCLE_PATH)}
+							>
+								{L('recycleBin')}
+							</button>
+						</section>
+					)
+				}
+
+				if (sectionId === 'tags') {
+					return (
+						<section key={sectionId}>
+							{header}
+							<button
+								type="button"
+								className={item(activeTagFilter === null)}
+								onClick={() => onTagFilter(null)}
+							>
+								—
+							</button>
+							{tagDefs.map(tag => (
+								<button
+									key={tag.id}
+									type="button"
+									className={`${item(activeTagFilter === tag.id)} flex items-center gap-2`}
+									onClick={() =>
+										onTagFilter(activeTagFilter === tag.id ? null : tag.id)
+									}
+								>
+									<span
+										className="h-2.5 w-2.5 shrink-0 rounded-full"
+										style={{background: tag.color}}
+									/>
+									{tag.name}
+								</button>
+							))}
+						</section>
+					)
+				}
+
+				return (
+					<section key={sectionId}>
+						{header}
+						{bookmarks.length === 0 && (
+							<p className="px-2 text-xs opacity-40">{L('bookmarkDragHint')}</p>
 						)}
-						onClick={() => onNavigate(d.path)}
-						onContextMenu={e => openCtx(e, d.path, 'drive')}
-						draggable
-						onDragStart={e => setNavDragData(e.dataTransfer, d.path)}
-					>
-						{d.name}
-					</button>
-				))}
-				<button
-					type="button"
-					className={item(isRecyclePath(currentPath))}
-					onClick={() => onNavigate(RECYCLE_PATH)}
-					onContextMenu={e => openCtx(e, RECYCLE_PATH, 'recycle')}
-					draggable
-					onDragStart={e => setNavDragData(e.dataTransfer, RECYCLE_PATH)}
-				>
-					{L('recycleBin')}
-				</button>
-			</section>
-			<section>
-				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
-					{L('tags')}
-				</h2>
-				<button
-					type="button"
-					className={item(activeTagFilter === null)}
-					onClick={() => onTagFilter(null)}
-				>
-					—
-				</button>
-				{tagDefs.map(tag => (
-					<button
-						key={tag.id}
-						type="button"
-						className={`${item(activeTagFilter === tag.id)} flex items-center gap-2`}
-						onClick={() =>
-							onTagFilter(activeTagFilter === tag.id ? null : tag.id)
-						}
-					>
-						<span
-							className="h-2.5 w-2.5 shrink-0 rounded-full"
-							style={{background: tag.color}}
-						/>
-						{tag.name}
-					</button>
-				))}
-			</section>
-			<section>
-				<h2 className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">
-					{L('bookmarks')}
-				</h2>
-				{bookmarks.length === 0 && (
-					<p className="px-2 text-xs opacity-40">{L('bookmarkDragHint')}</p>
-				)}
-				{bookmarks.map((b, index) => {
-					const isDropTarget = bmDrop === index && bmDrag !== index
-					return (
-						<div
-							key={b.id}
-							draggable={!isEditing('bookmark', b.id)}
-							className={`group flex items-center gap-0.5 rounded ${
-								isDropTarget ? 'ring-1 ring-[var(--xp-fg)]' : ''
-							} ${bmDrag === index ? 'opacity-40' : ''}`}
-							onDragStart={e => {
-								e.dataTransfer.setData(BM_DND, String(index))
-								setNavDragData(e.dataTransfer, b.path)
-								e.dataTransfer.effectAllowed = 'copyMove'
-								setBmDrag(index)
-							}}
-							onDragEnd={() => {
-								setBmDrag(null)
-								setBmDrop(null)
-							}}
-							onDragOver={e => {
-								if (![...e.dataTransfer.types].includes(BM_DND)) return
-								e.preventDefault()
-								e.stopPropagation()
-								e.dataTransfer.dropEffect = 'move'
-								setBmDrop(index)
-							}}
-							onDragLeave={() => {
-								setBmDrop(prev => (prev === index ? null : prev))
-							}}
-							onDrop={e => {
-								const raw = e.dataTransfer.getData(BM_DND)
-								if (!raw) return
-								e.preventDefault()
-								e.stopPropagation()
-								const from = Number.parseInt(raw, 10)
-								setBmDrag(null)
-								setBmDrop(null)
-								if (Number.isFinite(from) && from !== index) {
-									onReorderBookmarks(from, index)
-								}
-							}}
-							onContextMenu={e => openCtx(e, b.path, 'bookmark', b.id)}
-						>
-							<span
-								className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
-								title={L('reorderBookmark')}
-								aria-hidden
-							>
-								⋮⋮
-							</span>
-							{isEditing('bookmark', b.id) ? (
-								<input
-									autoFocus
-									value={editValue}
-									onChange={e => setEditValue(e.target.value)}
-									onBlur={commitEdit}
-									onKeyDown={e => {
-										if (e.key === 'Enter') commitEdit()
-										if (e.key === 'Escape') setEditing(null)
+						{bookmarks.map((b, index) => {
+							const isDropTarget = bmDrop === index && bmDrag !== index
+							return (
+								<div
+									key={b.id}
+									draggable={!isEditing('bookmark', b.id)}
+									className={`group flex items-center gap-0.5 rounded ${
+										isDropTarget ? 'ring-1 ring-[var(--xp-fg)]' : ''
+									} ${bmDrag === index ? 'opacity-40' : ''}`}
+									onDragStart={e => {
+										e.dataTransfer.setData(BM_DND, String(index))
+										setNavDragData(e.dataTransfer, b.path)
+										e.dataTransfer.effectAllowed = 'copyMove'
+										setBmDrag(index)
 									}}
-									onClick={e => e.stopPropagation()}
-									className="min-w-0 flex-1 rounded border border-[var(--xp-fg)] bg-[var(--xp-bg)] px-1.5 py-1 text-sm outline-none"
-								/>
-							) : (
-								<button
-									type="button"
-									className={`${item(currentPath === b.path)} flex-1`}
-									onClick={() => onNavigate(b.path)}
-									onDoubleClick={e => {
+									onDragEnd={() => {
+										setBmDrag(null)
+										setBmDrop(null)
+									}}
+									onDragOver={e => {
+										if (![...e.dataTransfer.types].includes(BM_DND)) return
 										e.preventDefault()
 										e.stopPropagation()
-										startEdit('bookmark', b.id, b.label)
+										e.dataTransfer.dropEffect = 'move'
+										setBmDrop(index)
 									}}
-									title={`${b.path}\n${L('editBookmarkHint')}`}
+									onDragLeave={() => {
+										setBmDrop(prev => (prev === index ? null : prev))
+									}}
+									onDrop={e => {
+										const raw = e.dataTransfer.getData(BM_DND)
+										if (!raw) return
+										e.preventDefault()
+										e.stopPropagation()
+										const from = Number.parseInt(raw, 10)
+										setBmDrag(null)
+										setBmDrop(null)
+										if (Number.isFinite(from) && from !== index) {
+											onReorderBookmarks(from, index)
+										}
+									}}
+									onContextMenu={e => openCtx(e, b.path, 'bookmark', b.id)}
 								>
-									{b.label}
-								</button>
-							)}
-							<button
-								type="button"
-								className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
-								onClick={e => {
-									e.stopPropagation()
-									startEdit('bookmark', b.id, b.label)
-								}}
-								title={L('rename')}
-							>
-								✎
-							</button>
-							<button
-								type="button"
-								className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
-								onClick={() => onRemoveBookmark(b.id)}
-								title={L('removeBookmark')}
-							>
-								×
-							</button>
-						</div>
-					)
-				})}
-			</section>
+									<span
+										className="cursor-grab px-0.5 text-xs opacity-30 group-hover:opacity-70 active:cursor-grabbing"
+										title={L('reorderBookmark')}
+										aria-hidden
+									>
+										⋮⋮
+									</span>
+									{isEditing('bookmark', b.id) ? (
+										<input
+											autoFocus
+											value={editValue}
+											onChange={e => setEditValue(e.target.value)}
+											onBlur={commitEdit}
+											onKeyDown={e => {
+												if (e.key === 'Enter') commitEdit()
+												if (e.key === 'Escape') setEditing(null)
+											}}
+											onClick={e => e.stopPropagation()}
+											className="min-w-0 flex-1 rounded border border-[var(--xp-fg)] bg-[var(--xp-bg)] px-1.5 py-1 text-sm outline-none"
+										/>
+									) : (
+										<button
+											type="button"
+											className={`${item(currentPath === b.path)} flex-1`}
+											onClick={() => onNavigate(b.path)}
+											onDoubleClick={e => {
+												e.preventDefault()
+												e.stopPropagation()
+												startEdit('bookmark', b.id, b.label)
+											}}
+											title={`${b.path}\n${L('editBookmarkHint')}`}
+										>
+											{b.label}
+										</button>
+									)}
+									<button
+										type="button"
+										className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
+										onClick={e => {
+											e.stopPropagation()
+											startEdit('bookmark', b.id, b.label)
+										}}
+										title={L('rename')}
+									>
+										✎
+									</button>
+									<button
+										type="button"
+										className="hidden px-1 opacity-50 group-hover:inline hover:opacity-100"
+										onClick={() => onRemoveBookmark(b.id)}
+										title={L('removeBookmark')}
+									>
+										×
+									</button>
+								</div>
+							)
+						})}
+					</section>
+				)
+			})}
 			{menuNode}
 		</aside>
 	)

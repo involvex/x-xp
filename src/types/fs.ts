@@ -89,6 +89,16 @@ export interface QuickAccessPrefs {
 	hidden: string[]
 }
 
+/** Reorderable left-sidebar content sections (Home stays fixed at top). */
+export type SidebarSectionId = 'quickAccess' | 'drives' | 'tags' | 'bookmarks'
+
+export const DEFAULT_SIDEBAR_SECTION_ORDER: SidebarSectionId[] = [
+	'quickAccess',
+	'drives',
+	'tags',
+	'bookmarks',
+]
+
 export interface EntryProperties {
 	name: string
 	path: string
