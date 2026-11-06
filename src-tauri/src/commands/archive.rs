@@ -93,11 +93,13 @@ pub async fn extract_archive(path: String, dest: Option<String>) -> Result<Strin
 		let mut zip = ZipArchive::new(file).map_err(|e| e.to_string())?;
 		for i in 0..zip.len() {
 			let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
-			let Some(rel) = sanitize_zip_path(entry.name()) else {
+			// zip 9+: name() returns Result (non-UTF-8 / decrypt errors)
+			let name = entry.name().map_err(|e| e.to_string())?.into_owned();
+			let Some(rel) = sanitize_zip_path(&name) else {
 				continue;
 			};
 			let out_path = dest_dir.join(&rel);
-			if entry.is_dir() || entry.name().ends_with('/') || entry.name().ends_with('\\') {
+			if entry.is_dir() || name.ends_with('/') || name.ends_with('\\') {
 				fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
 				continue;
 			}
