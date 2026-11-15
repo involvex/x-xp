@@ -121,7 +121,7 @@ export function FileList({
 	if (entries.length === 0) {
 		return (
 			<div
-				className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
 				onDragOver={onDragOverPane}
 				onDrop={onDropOnPane}
 			>
@@ -134,7 +134,7 @@ export function FileList({
 	if (viewMode === 'icons') {
 		return (
 			<div
-				className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 overflow-auto p-3 content-start"
+				className="grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 overflow-auto p-3 content-start"
 				onDragOver={onDragOverPane}
 				onDrop={onDropOnPane}
 			>
@@ -180,7 +180,7 @@ export function FileList({
 
 	return (
 		<div
-			className="flex flex-1 flex-col overflow-auto"
+			className="flex min-h-0 flex-1 flex-col overflow-auto"
 			onDragOver={onDragOverPane}
 			onDrop={onDropOnPane}
 		>

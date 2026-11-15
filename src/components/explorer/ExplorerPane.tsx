@@ -919,7 +919,7 @@ export function ExplorerPane({
 
 	return (
 		<div
-			className={`flex min-w-0 flex-1 flex-col ${active ? '' : 'opacity-80'} ${dropTarget === path ? 'ring-1 ring-inset ring-[var(--xp-fg)]' : ''}`}
+			className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${active ? '' : 'opacity-80'} ${dropTarget === path ? 'ring-1 ring-inset ring-[var(--xp-fg)]' : ''}`}
 			onClick={onFocus}
 			onContextMenu={e => {
 				if (atVirtual) return

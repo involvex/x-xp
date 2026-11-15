@@ -100,12 +100,12 @@ export function ColumnsView({
 			{columns.map((col, colIndex) => (
 				<div
 					key={`${col.path}-${colIndex}`}
-					className="flex w-56 shrink-0 flex-col border-r border-[var(--xp-border)]"
+					className="flex min-h-0 w-56 shrink-0 flex-col border-r border-[var(--xp-border)]"
 				>
 					<div className="truncate border-b border-[var(--xp-border)] px-2 py-1 text-[10px] uppercase tracking-wide opacity-50">
 						{col.path}
 					</div>
-					<ul className="flex-1 overflow-auto">
+					<ul className="min-h-0 flex-1 overflow-auto">
 						{col.entries.length === 0 && (
 							<li className="px-3 py-4 text-xs opacity-40">{L('empty')}</li>
 						)}

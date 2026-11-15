@@ -1493,7 +1493,7 @@ export default function App() {
 					}}
 					onToggleCollapsed={toggleSidebarCollapsed}
 				/>
-				<div className="flex min-w-0 flex-1">
+				<div className="flex min-h-0 min-w-0 flex-1">
 					<div
 						ref={dualPanesRef}
 						className="relative flex min-h-0 min-w-0 flex-1"
